@@ -1,334 +1,240 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>Mini Fortress — 0.1</title>
-<style>
-  :root{--bg:#0d1117;--ink:#e6edf3;--muted:#9da6b6;--panel:#161b22;--accent:#6ea8fe;--good:#33d17a;--warn:#f7c14a;--bad:#ff6b6b;}
-  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:13px/1.35 ui-monospace,Menlo,Consolas,monospace}
-  .wrap{display:grid;grid-template-rows:auto 1fr auto; height:100%}
-  .top{display:flex;gap:8px;align-items:center;padding:8px;border-bottom:1px solid #263241;background:var(--panel)}
-  .btn{border:1px solid #2b3a4d;background:#101521;color:var(--ink);border-radius:6px;padding:6px 10px;cursor:pointer}
-  .btn:active{transform:translateY(1px)}
-  .pill{padding:6px 10px;border:1px solid #2b3a4d;border-radius:999px}
-  .stat{color:var(--muted)}
-  #view{width:100%;height:100%;touch-action:none;display:block;background:#0b0f14}
-  .bottom{display:grid;grid-template-columns:1fr 240px;gap:8px;padding:8px;border-top:1px solid #263241;background:var(--panel)}
-  #log{background:#0f1420;border:1px solid #243247;border-radius:6px;padding:8px;overflow:auto;max-height:28vh}
-  #ui{display:flex;flex-wrap:wrap;gap:8px;align-content:start}
-  .lbl{display:flex;align-items:center;gap:6px}
-  input[type="range"]{width:120px}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LOST POETS — ASCII Prototype</title>
+  <style>
+    /* Monochrome, monospaced, Qud-like frame */
+    :root{ --bg:#000; --ink:#fff; --muted:#aaa; --panel:#0a0a0a; --line:#333; }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:14px/1.35 ui-monospace, Menlo, Consolas, monospace}
+    .wrap{display:grid;grid-template-rows:auto 1fr auto;gap:0;max-width:980px;margin:0 auto;height:100%}
+    header,footer{padding:6px 10px;color:var(--muted);border-bottom:1px solid var(--line)}
+    footer{border-top:1px solid var(--line);border-bottom:none}
+    #game{display:grid;grid-template-columns:1fr 260px;gap:0}
+    .frame{display:grid;grid-template-rows:auto 1fr auto;}
+    .bezel{background:var(--panel); border-left:1px solid var(--line); border-right:1px solid var(--line)}
+    .titlebar{padding:4px 8px; border-bottom:1px solid var(--line); color:var(--muted)}
+    #view{background:#000; padding:8px; white-space:pre; overflow:hidden; min-height:25ch; min-width:25ch; line-height:1;}
+    .term{padding:8px;border-left:1px solid var(--line);border-right:1px solid var(--line)}
+    #hud{border-left:1px solid var(--line);}
+    #hud .panel{padding:8px;border-bottom:1px solid var(--line)}
+    .mono{font-family: ui-monospace, Menlo, Consolas, monospace}
+    .dim{color:#666}
+    .log{height:160px;overflow:auto;white-space:pre-line;color:var(--muted);}
+    .help{font-size:12px;color:var(--muted)}
+    kbd{border:1px solid var(--line);padding:0 4px;margin:0 1px}
+
+    /* Visibility gradient shades (applied to spans) */
+    .v0{opacity:1.0}
+    .v1{opacity:0.90}
+    .v2{opacity:0.78}
+    .v3{opacity:0.66}
+    .v4{opacity:0.54}
+    .v5{opacity:0.42}
+    .v6{opacity:0.32}
+    .v7{opacity:0.22}
+    .v8{opacity:0.14}
+    .v9{opacity:0.08}
+    .fog{color:#000} /* unexplored */
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top">
-    <button class="btn" id="modeDig">🪓 Dig</button>
-    <button class="btn" id="modeCancel">🚫 Cancel</button>
-    <button class="btn" id="pause">⏯️ Pause</button>
-    <button class="btn" id="step">⏭️ Step</button>
-    <button class="btn" id="save">💾 Save</button>
-    <button class="btn" id="load">📂 Load</button>
-    <span class="pill stat">Speed <input id="speed" type="range" min="1" max="5" value="3"/></span>
-    <span class="pill stat">Zoom <input id="zoom" type="range" min="6" max="32" value="16"/></span>
-    <span class="pill stat" id="info">Tick 0 • FPS —</span>
-  </div>
+  <div class="wrap">
+    <header class="mono">LOST POETS — ASCII Prototype · <span class="help">Move <kbd>WASD</kbd>/<kbd>Arrows</kbd> · <kbd>R</kbd> Rest · <kbd>O</kbd> Observe · <kbd>V</kbd> toggle visibility · <kbd>Q</kbd> Reload</span></header>
 
-  <canvas id="view"></canvas>
+    <main id="game">
+      <section class="frame">
+        <div class="titlebar mono">[ MAP 25×25 ]</div>
+        <div class="term"><pre id="view" aria-label="playfield" tabindex="0"></pre></div>
+        <div class="bezel"><div class="log mono" id="log"></div></div>
+      </section>
 
-  <div class="bottom">
-    <div id="log"></div>
-    <div id="ui">
-      <div class="lbl"><input id="grid" type="checkbox" checked/> show grid</div>
-      <div class="lbl"><input id="names" type="checkbox" checked/> show dwarf</div>
-      <div class="lbl"><input id="follow" type="checkbox"/> camera follow</div>
-      <div class="lbl"><input id="fog" type="checkbox" checked/> fog of war</div>
-      <div class="lbl"><input id="markers" type="checkbox" checked/> show designations</div>
-      <div class="lbl"><input id="shadows" type="checkbox" checked/> soft shading</div>
-      <small class="stat">Tap tiles to toggle dig (🪓). Two-finger pan, pinch to zoom.</small>
-    </div>
+      <aside id="hud" class="mono">
+        <div class="panel">[ VITALS ]
+HP: <span id="hp"></span>
+STR:<span id="str"></span>  INT:<span id="int"></span>  AGI:<span id="agi"></span></div>
+        <div class="panel">[ HINTS ]
+? help · V toggles gradient visibility · . wait</div>
+      </aside>
+    </main>
+
+    <footer class="mono">Monochrome, Qud-inspired frame. Gradient darkness (radius visibility) + pure-black fog of war. Seedable worldgen.</footer>
   </div>
-</div>
 
 <script>
-// ======== CONFIG / TYPES ========
-const W = 80, H = 48;   // tiles (fits phones w/ zoom)
-const Tile = { AIR:0, DIRT:1, ROCK:2, STAIRS:3 };
-const Solid = t => (t===Tile.DIRT || t===Tile.ROCK);
-const Diggable = t => (t===Tile.DIRT || t===Tile.ROCK);
-const DIRS = [[1,0],[-1,0],[0,1],[0,-1]];
-const clamp = (v,a,b)=>v<a?a:v>b?b:v;
-const rand = (n)=>Math.floor(Math.random()*n);
-const inb = (x,y)=>x>=0&&y>=0&&x<W&&y<H;
+// =============================
+// LOST POETS — Minimal ASCII Engine (monochrome)
+// =============================
+const WIDTH = 25, HEIGHT = 25;          // viewport size
+const WORLD_W = 25, WORLD_H = 25;       // world size (==viewport for now)
+const VIS_RADIUS = 8;                   // visibility radius around player
 
-// ======== STATE ========
-let grid = new Uint8Array(W*H);
-let marked = new Uint8Array(W*H); // 0 none, 1 dig
-let seen = new Uint8Array(W*H);
-let tick=0, running=true, speed=3, fps=0;
-let cam = {x:0,y:0, z:16};
-let dwarf = {id:"Urist", x:Math.floor(W/2), y:8, hunger:0, energy:100, path:[], job:null};
-let options = {grid:true,names:true,follow:false,fog:true,markers:true,shadows:true};
-const at=(x,y)=>grid[y*W+x];
-const set=(x,y,v)=>grid[y*W+x]=v;
-const mk=(x,y)=>marked[y*W+x];
-const setmk=(x,y,v)=>marked[y*W+x]=v;
-const see=(x,y)=>seen[y*W+x]=1;
+const TILES = {
+  FLOOR: {ch:'.', walk:true},
+  WALL:  {ch:'#', walk:false},
+  PLAYER:{ch:'@', walk:true}
+};
 
-// ======== WORLDGEN ========
-function gen(){
-  for(let y=0;y<H;y++){
-    for(let x=0;x<W;x++){
-      let v;
-      if(y<6) v=Tile.AIR;
-      else if(y<9) v=(Math.random()<0.2?Tile.ROCK:Tile.DIRT);
-      else {
-        const depth=y-9, r=Math.random();
-        v = (r < 0.15+depth*0.02) ? Tile.ROCK : Tile.DIRT;
-      }
-      set(x,y,v);
-      setmk(x,y,0);
-      seen[y*W+x]= (y<6)?1:0;
-    }
+const state = {
+  seed: (Date.now()%2147483647),
+  map: [],
+  visibilityOn: true,
+  seen: new Set(),      // tiles discovered at least once
+  player: {x:12,y:12,hp:10,str:5,int:5,agi:5},
+  log: []
+};
+
+// ---------- RNG (LCG)
+let _seed=1; function srand(s){ _seed=s%2147483647; if(_seed<=0) _seed+=2147483646; }
+function rand(){ return _seed = _seed*16807 % 2147483647; }
+function rf(){ return (rand()-1)/2147483646; }
+
+// ---------- Map Gen (rooms + random walks)
+function makeMap(){
+  const m = Array.from({length:WORLD_H},()=>Array.from({length:WORLD_W},()=>TILES.WALL));
+  let x=Math.floor(WORLD_W/2), y=Math.floor(WORLD_H/2); m[y][x]=TILES.FLOOR;
+  for(let i=0;i<WORLD_W*WORLD_H*6;i++){
+    const [dx,dy] = [[1,0],[-1,0],[0,1],[0,-1]][Math.floor(rf()*4)];
+    x=Math.max(1,Math.min(WORLD_W-2,x+dx)); y=Math.max(1,Math.min(WORLD_H-2,y+dy));
+    m[y][x]=TILES.FLOOR; if(rf()<0.35){ if(x+1<WORLD_W-1)m[y][x+1]=TILES.FLOOR; if(y+1<WORLD_H-1)m[y+1][x]=TILES.FLOOR; }
   }
-  // carve a small cave
-  const cx=rand(W), cy=rand(H-10)+10;
-  for(let i=0;i<300;i++){
-    const rx=clamp(cx+rand(11)-5,0,W-1), ry=clamp(cy+rand(9)-4,0,H-1);
-    set(rx,ry,Tile.AIR);
+  for(let r=0;r<6;r++){
+    const rw=3+Math.floor(rf()*6), rh=3+Math.floor(rf()*6);
+    const rx=1+Math.floor(rf()*(WORLD_W-rw-2));
+    const ry=1+Math.floor(rf()*(WORLD_H-rh-2));
+    for(let yy=ry; yy<ry+rh; yy++) for(let xx=rx; xx<rx+rw; xx++) m[yy][xx]=TILES.FLOOR;
   }
-  // spawn dwarf on surface air pocket
-  dwarf.x = clamp(cx,2,W-3); dwarf.y=6; while(Solid(at(dwarf.x,dwarf.y+1))) dwarf.y--;
-  log("Embark! A lone dwarf arrives.");
+  const p = findFirst(m, (v)=>v===TILES.FLOOR, Math.floor(WORLD_W/2), Math.floor(WORLD_H/2));
+  if(p){ state.player.x=p.x; state.player.y=p.y; }
+  return m;
 }
-gen();
 
-// ======== LOG ========
-const logEl = document.getElementById('log');
-function log(msg){ const t=`[${String(tick).padStart(5,'0')}] ${msg}`;
-  const p=document.createElement('div'); p.textContent=t; logEl.appendChild(p); logEl.scrollTop=logEl.scrollHeight; }
-
-// ======== PATHFINDING (BFS) ========
-function bfs(sx,sy,tx,ty){
-  // Target is a *neighbor* of a dig tile (or any walkable)
-  const q=[[sx,sy]], came=new Map(), key=(x,y)=>x+','+y;
-  const seen=new Set([key(sx,sy)]);
+function findFirst(map, pred, sx, sy){
+  const q=[{x:sx,y:sy}], seen=new Set([sy*1000+sx]);
   while(q.length){
-    const [x,y]=q.shift();
-    if(x===tx && y===ty){
-      const path=[]; let k=key(x,y);
-      while(came.has(k)){ const prev=came.get(k); const [px,py]=prev; path.push([x,y]); k=key(px,py); x=px; y=py; }
-      path.reverse(); return path;
-    }
-    for(const [dx,dy] of DIRS){
-      const nx=x+dx, ny=y+dy; if(!inb(nx,ny)) continue;
-      if(Solid(at(nx,ny))) continue;
-      const kk=key(nx,ny); if(seen.has(kk)) continue;
-      seen.add(kk); came.set(kk,[x,y]); q.push([nx,ny]);
+    const {x,y}=q.shift(); if(pred(map[y][x])) return {x,y};
+    for(const [dx,dy] of [[1,0],[ -1,0],[0,1],[0,-1]]){
+      const nx=x+dx, ny=y+dy, k=ny*1000+nx;
+      if(nx>0&&ny>0&&nx<WORLD_W-1&&ny<WORLD_H-1&&!seen.has(k)){ q.push({x:nx,y:ny}); seen.add(k); }
     }
   }
-  return [];
 }
 
-// ======== JOB SYSTEM ========
-function nextDigTarget(){
-  // find nearest marked cell; stand on an adjacent walkable tile to dig it
-  let best=null, bestD=1e9;
-  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
-    if(mk(x,y)!==1 || !Diggable(at(x,y))) continue;
-    // find any adjacent walkable
-    for(const [dx,dy] of DIRS){
-      const ax=x+dx, ay=y+dy;
-      if(!inb(ax,ay) || Solid(at(ax,ay))) continue;
-      const d=Math.abs(ax-dwarf.x)+Math.abs(ay-dwarf.y);
-      if(d<bestD){ bestD=d; best={tx:x,ty:y, px:ax,py:ay}; }
-    }
-  }
-  return best;
+// ---------- Visibility (radial, non-occluded)
+function visibleDistance(x,y){
+  const dx = x - state.player.x;
+  const dy = y - state.player.y;
+  return Math.sqrt(dx*dx + dy*dy);
 }
 
-function assignJob(){
-  const tgt=nextDigTarget();
-  if(!tgt) { dwarf.job=null; return; }
-  dwarf.job={type:"dig", ...tgt};
-  dwarf.path=bfs(dwarf.x,dwarf.y,tgt.px,tgt.py);
-  if(dwarf.path.length===0) { dwarf.job=null; setmk(tgt.tx,tgt.ty,0); log("No path to target."); }
+function shadeClass(dist){
+  // Map distance [0, VIS_RADIUS] to classes v0..v9 (0 = brightest)
+  if(dist<=0) return 'v0';
+  const t = Math.min(1, dist / VIS_RADIUS);
+  const idx = Math.min(9, Math.floor(t*10));
+  return 'v'+idx;
 }
 
-function work(){
-  if(!dwarf.job){ assignJob(); return; }
-  if(dwarf.path.length){
-    const [nx,ny]=dwarf.path.shift(); dwarf.x=nx; dwarf.y=ny; return;
-  }
-  // Adjacent: perform dig
-  if(dwarf.job.type==="dig"){
-    if(Diggable(at(dwarf.job.tx,dwarf.job.ty))){
-      set(dwarf.job.tx,dwarf.job.ty,Tile.AIR);
-      setmk(dwarf.job.tx,dwarf.job.ty,0);
-      log(`Urist dug (${dwarf.job.tx},${dwarf.job.ty}).`);
-      // reveal
-      see(dwarf.job.tx,dwarf.job.ty);
-      for(const [dx,dy] of DIRS){ const vx=dwarf.job.tx+dx, vy=dwarf.job.ty+dy; if(inb(vx,vy)) see(vx,vy); }
-    }
-    dwarf.job=null;
-  }
-}
+// ---------- Rendering (spans per glyph for gradient control)
+function render(){
+  let out = '';
+  for(let y=0;y<HEIGHT;y++){
+    for(let x=0;x<WIDTH;x++){
+      // Player always bright
+      if(x===state.player.x && y===state.player.y){
+        out += `<span class="v0">${TILES.PLAYER.ch}</span>`; 
+        state.seen.add(y*1000+x);
+        continue;
+      }
+      const k = y*1000 + x;
+      const seen = state.seen.has(k);
 
-// ======== SIM LOOP ========
-let acc=0, last=performance.now(), frames=0, fpsLast=performance.now();
-function update(dt){
-  acc += dt * speed;
-  while(acc>100){ acc-=100; stepSim(); }
-}
-function stepSim(){
-  tick++; dwarf.hunger=clamp(dwarf.hunger+0.05,0,100); dwarf.energy=clamp(dwarf.energy-0.02,0,100);
-  if(dwarf.energy<5){ if(rand(20)===0) log("Urist rests."); return; }
-  work();
-}
-
-function loop(now){
-  const dt=now-last; last=now;
-  if(running) update(dt);
-  draw();
-  frames++; if(now-fpsLast>500){ fps=Math.round(frames*1000/(now-fpsLast)); frames=0; fpsLast=now; }
-  document.getElementById('info').textContent=`Tick ${tick} • FPS ${fps}`;
-  requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
-
-// ======== RENDER ========
-const cvs=document.getElementById('view'), ctx=cvs.getContext('2d');
-function resize(){ cvs.width=cvs.clientWidth*devicePixelRatio; cvs.height=cvs.clientHeight*devicePixelRatio; ctx.imageSmoothingEnabled=false; }
-addEventListener('resize',resize,{passive:true}); resize();
-
-function draw(){
-  const t=cam.z|0;
-  const offX = -cam.x, offY = -cam.y;
-  ctx.save(); ctx.scale(devicePixelRatio,devicePixelRatio);
-  ctx.clearRect(0,0,cvs.width, cvs.height);
-
-  const cols={air:'#0b0f14', dirt:'#352e22', rock:'#262a34', grid:'#1a2130', mark:'#6ea8fe', fog:'#070a0f'};
-  // background vignette
-  if(options.shadows){
-    const g=ctx.createRadialGradient(cvs.width/2/devicePixelRatio,cvs.height/2/devicePixelRatio,10, cvs.width/2/devicePixelRatio,cvs.height/2/devicePixelRatio, Math.max(cvs.width,cvs.height)/devicePixelRatio);
-    g.addColorStop(0,'#0b0f14'); g.addColorStop(1,'#070a0f'); ctx.fillStyle=g; ctx.fillRect(0,0,cvs.width/devicePixelRatio,cvs.height/devicePixelRatio);
-  }
-
-  // tiles
-  const startX=Math.floor((-offX)/t)-1, endX=Math.ceil((cvs.width/devicePixelRatio - offX)/t)+1;
-  const startY=Math.floor((-offY)/t)-1, endY=Math.ceil((cvs.height/devicePixelRatio - offY)/t)+1;
-  for(let y=startY;y<endY;y++){
-    for(let x=startX;x<endX;x++){
-      if(!inb(x,y)) continue;
-      const v=at(x,y); const sx=x*t+offX, sy=y*t+offY;
-      if(options.fog && !seen[y*W+x]){ ctx.fillStyle=cols.fog; ctx.fillRect(sx,sy,t,t); continue; }
-      if(v===Tile.AIR) { /* draw nothing; cave darkness already */ }
-      else if(v===Tile.DIRT){ ctx.fillStyle=cols.dirt; ctx.fillRect(sx,sy,t,t); }
-      else if(v===Tile.ROCK){ ctx.fillStyle=cols.rock; ctx.fillRect(sx,sy,t,t); }
-      else if(v===Tile.STAIRS){ ctx.fillStyle='#8aa0ff'; ctx.fillRect(sx,sy,t,t); }
-      if(options.grid){ ctx.strokeStyle=cols.grid; ctx.lineWidth=1; ctx.strokeRect(sx+0.5,sy+0.5,t-1,t-1); }
-      if(options.markers && mk(x,y)===1){
-        ctx.strokeStyle=cols.mark; ctx.lineWidth=2;
-        ctx.beginPath(); ctx.moveTo(sx+3,sy+3); ctx.lineTo(sx+t-3,sy+t-3);
-        ctx.moveTo(sx+t-3,sy+3); ctx.lineTo(sx+3,sy+t-3); ctx.stroke();
+      // Compute current visibility
+      let ch = state.map[y][x].ch;
+      if(state.visibilityOn){
+        const dist = visibleDistance(x,y);
+        const isVisible = dist <= VIS_RADIUS;
+        if(isVisible){
+          state.seen.add(k);
+          out += `<span class="${shadeClass(dist)}">${ch}</span>`;
+        } else {
+          if(!seen){
+            // unexplored = pure black
+            out += `<span class="fog">${' '}</span>`;
+          } else {
+            // discovered but out of sight: very dark
+            out += `<span class="v9">${ch}</span>`;
+          }
+        }
+      } else {
+        // Visibility disabled: everything shown at medium brightness
+        state.seen.add(k);
+        out += `<span class="v4">${ch}</span>`;
       }
     }
+    if(y<HEIGHT-1) out+='
+';
   }
-
-  // dwarf
-  if(options.names){
-    const sx=dwarf.x*t+offX, sy=dwarf.y*t+offY;
-    ctx.fillStyle='#ffd86b'; ctx.beginPath(); ctx.arc(sx+t/2,sy+t/2,t*0.35,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#111'; ctx.fillRect(sx+t*0.35, sy+t*0.28, t*0.12, t*0.12);
-    ctx.fillStyle='#fff'; ctx.font=`${Math.max(10,t*0.4)|0}px ui-monospace`; ctx.fillText('U', sx+2, sy-2);
-  }
-
-  ctx.restore();
+  view.innerHTML = out;
+  hp.textContent = pad(state.player.hp,2);
+  str.textContent = pad(state.player.str,2);
+  int_.textContent = pad(state.player.int,2);
+  agi.textContent = pad(state.player.agi,2);
+  logEl.textContent = state.log.slice(-10).join('
+');
 }
 
-// ======== CAMERA / INPUT ========
-let mode='dig', dragging=false, lastP=null, pinchStart=null, camStart=null;
-document.getElementById('modeDig').onclick=()=>mode='dig';
-document.getElementById('modeCancel').onclick=()=>mode='cancel';
-document.getElementById('pause').onclick=()=>{running=!running};
-document.getElementById('step').onclick=()=>{stepSim(); draw();};
-document.getElementById('speed').oninput=e=>speed=+e.target.value;
-document.getElementById('zoom').oninput=e=>{ cam.z=+e.target.value; };
-for(const id of ['grid','names','follow','fog','markers','shadows']){
-  document.getElementById(id).oninput=e=>options[id]=e.target.checked;
+function pad(v,n){ return (''+Math.round(v)).padStart(n,' '); }
+function log(msg){ state.log.push(msg); }
+
+// ---------- Actions
+function tryMove(dx,dy){
+  const nx=state.player.x+dx, ny=state.player.y+dy; if(!inBounds(nx,ny)) return;
+  if(state.map[ny][nx]===TILES.WALL){ log('Bump.'); return; }
+  state.player.x=nx; state.player.y=ny; inc('agi',0.01);
 }
-function screenToTile(cx,cy){
-  const rect=cvs.getBoundingClientRect();
-  const x=(cx-rect.left)-cam.x, y=(cy-rect.top)-cam.y;
-  return {x:Math.floor(x/cam.z), y:Math.floor(y/cam.z)};
-}
-cvs.addEventListener('pointerdown',e=>{
-  e.preventDefault(); cvs.setPointerCapture(e.pointerId);
-  if(e.isPrimary && e.pointerType!=='touch'){ dragging=true; lastP={x:e.clientX,y:e.clientY}; return; }
+function rest(){ if(state.map[state.player.y][state.player.x]!==TILES.FLOOR){ log('Cannot rest here.'); return; }
+  state.player.hp=Math.min(10,state.player.hp+1); inc('int',0.01); log('You rest.'); }
+function observe(){ inc('int',0.02); log('You observe.'); render(); }
+
+function inc(k,amt){ state.player[k]=Math.round((state.player[k]+amt)*100)/100; }
+function inBounds(x,y){ return x>=0&&y>=0&&x<WORLD_W&&y<WORLD_H; }
+
+// ---------- Input
+addEventListener('keydown', (e)=>{
+  const k=e.key; if(['ArrowUp','w','W'].includes(k)) { tryMove(0,-1); e.preventDefault(); }
+  else if(['ArrowDown','s','S'].includes(k)) { tryMove(0,1); e.preventDefault(); }
+  else if(['ArrowLeft','a','A'].includes(k)) { tryMove(-1,0); e.preventDefault(); }
+  else if(['ArrowRight','d','D'].includes(k)) { tryMove(1,0); e.preventDefault(); }
+  else if(k==='.' ) { log('Wait.'); }
+  else if(k==='r'||k==='R') rest();
+  else if(k==='o'||k==='O') observe();
+  else if(k==='v'||k==='V') { state.visibilityOn=!state.visibilityOn; log('Visibility '+(state.visibilityOn?'ON':'OFF')); }
+  else if(k==='q'||k==='Q') location.reload();
+  else if(k==='?') log('Help: WASD/arrows move · . wait · R rest · O observe · V toggle visibility · Q reload');
+  render();
 });
-cvs.addEventListener('pointermove',e=>{
-  if(dragging){ cam.x += e.clientX-lastP.x; cam.y += e.clientY-lastP.y; lastP={x:e.clientX,y:e.clientY}; }
-});
-cvs.addEventListener('pointerup',()=>{ dragging=false; lastP=null; });
 
-let touches=new Map();
-cvs.addEventListener('touchstart',e=>{
-  if(e.touches.length===1){
-    // tap to designate
-    const t=screenToTile(e.touches[0].clientX,e.touches[0].clientY);
-    if(inb(t.x,t.y)){
-      if(mode==='dig' && Diggable(at(t.x,t.y))){ setmk(t.x,t.y, mk(t.x,t.y)?0:1); if(mk(t.x,t.y)) log(`Designated dig at (${t.x},${t.y})`); }
-      else if(mode==='cancel'){ setmk(t.x,t.y,0); }
-      see(t.x,t.y); for(const [dx,dy] of DIRS){ const vx=t.x+dx, vy=t.y+dy; if(inb(vx,vy)) see(vx,vy); }
-    }
-  } else if(e.touches.length===2){
-    pinchStart = {
-      d: Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY),
-      z: cam.z
-    };
-    camStart = {x:cam.x,y:cam.y, cx:(e.touches[0].clientX+e.touches[1].clientX)/2, cy:(e.touches[0].clientY+e.touches[1].clientY)/2};
-  }
-},{passive:false});
-cvs.addEventListener('touchmove',e=>{
-  if(e.touches.length===2 && pinchStart){
-    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
-    const k=clamp((d/pinchStart.d),0.5,2); cam.z=clamp(Math.round(pinchStart.z*k),6,32);
-    const cx=(e.touches[0].clientX+e.touches[1].clientX)/2, cy=(e.touches[0].clientY+e.touches[1].clientY)/2;
-    cam.x += (cx-camStart.cx); cam.y += (cy-camStart.cy); camStart.cx=cx; camStart.cy=cy;
-    document.getElementById('zoom').value=cam.z;
-  } else if(e.touches.length===1 && !pinchStart){
-    cam.x += e.touches[0].movementX||0; cam.y += e.touches[0].movementY||0;
-  }
-},{passive:false});
-cvs.addEventListener('touchend',()=>{ pinchStart=null; camStart=null; },{passive:true});
+// ---------- Boot
+const view = document.getElementById('view');
+const hp = document.getElementById('hp');
+const str = document.getElementById('str');
+const int_ = document.getElementById('int');
+const agi = document.getElementById('agi');
+const logEl = document.getElementById('log');
 
-// ======== SAVE / LOAD ========
-document.getElementById('save').onclick=()=>{
-  const data={W,H,grid:Array.from(grid),marked:Array.from(marked),seen:Array.from(seen),dwarf,cam,tick};
-  localStorage.setItem('minifortress', JSON.stringify(data));
-  log("Saved.");
-};
-document.getElementById('load').onclick=()=>{
-  const s=localStorage.getItem('minifortress'); if(!s){ log("No save found."); return; }
-  const d=JSON.parse(s);
-  if(d.W!==W||d.H!==H){ log("Save size mismatch."); return; }
-  grid.set(d.grid); marked.set(d.marked); seen.set(d.seen);
-  dwarf=d.dwarf; cam=d.cam; tick=d.tick|0; log("Loaded.");
-};
-
-// ======== CAMERA FOLLOW (optional) ========
-setInterval(()=>{ if(options.follow){
-  const t=cam.z|0, cx=dwarf.x*t, cy=dwarf.y*t, vw=cvs.width/devicePixelRatio, vh=cvs.height/devicePixelRatio;
-  cam.x = clamp(-cx + vw/2 - t/2, -W*t+vw, 0);
-  cam.y = clamp(-cy + vh/2 - t/2, -H*t+vh, 0);
-}}, 150);
-
-// reveal around dwarf each frame
-function reveal(){ for(const [dx,dy] of DIRS.concat([[0,0],[1,1],[-1,-1],[1,-1],[-1,1]])){
-  const x=dwarf.x+dx, y=dwarf.y+dy; if(inb(x,y)) see(x,y);
-}}
-setInterval(reveal,200);
+(function init(){
+  const urlSeed = new URLSearchParams(location.search).get('seed');
+  srand(urlSeed? parseInt(urlSeed,10) : state.seed);
+  state.map = makeMap();
+  log('Seed '+_seed+'. Welcome.');
+  // Prime seen set for starting tile
+  state.seen.add(state.player.y*1000+state.player.x);
+  render();
+  view.focus();
+})();
 </script>
 </body>
 </html>
