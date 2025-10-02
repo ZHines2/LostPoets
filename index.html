@@ -174,16 +174,14 @@ function render(){
         out += `<span class="v4">${ch}</span>`;
       }
     }
-    if(y<HEIGHT-1) out+='
-';
+    if(y<HEIGHT-1) out+='\n';
   }
   view.innerHTML = out;
   hp.textContent = pad(state.player.hp,2);
   str.textContent = pad(state.player.str,2);
   int_.textContent = pad(state.player.int,2);
   agi.textContent = pad(state.player.agi,2);
-  logEl.textContent = state.log.slice(-10).join('
-');
+  logEl.textContent = state.log.slice(-10).join('\n');
 }
 
 function pad(v,n){ return (''+Math.round(v)).padStart(n,' '); }
