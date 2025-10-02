@@ -3,233 +3,795 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LOST POETS — ASCII Prototype</title>
+  <title>LOST POETS — Origin Temple &amp; Forest Overworld</title>
   <style>
-    /* Monochrome, monospaced, Qud-like frame */
-    :root{ --bg:#000; --ink:#fff; --muted:#aaa; --panel:#0a0a0a; --line:#333; }
+    /* Enhanced monochrome with color accents */
+    :root{ --bg:#000; --ink:#ddd; --muted:#888; --panel:#0a0a0a; --line:#333; 
+           --spade:#d4a574; --club:#b86; --heart:#e55; --diamond:#5ad; 
+           --success:#6d6; --warning:#da6; --error:#d44; }
     *{box-sizing:border-box}
     html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:14px/1.35 ui-monospace, Menlo, Consolas, monospace}
-    .wrap{display:grid;grid-template-rows:auto 1fr auto;gap:0;max-width:980px;margin:0 auto;height:100%}
+    .wrap{display:grid;grid-template-rows:auto 1fr auto;gap:0;max-width:1080px;margin:0 auto;height:100%}
     header,footer{padding:6px 10px;color:var(--muted);border-bottom:1px solid var(--line)}
     footer{border-top:1px solid var(--line);border-bottom:none}
-    #game{display:grid;grid-template-columns:1fr 260px;gap:0}
+    #game{display:grid;grid-template-columns:1fr 300px;gap:0}
     .frame{display:grid;grid-template-rows:auto 1fr auto;}
     .bezel{background:var(--panel); border-left:1px solid var(--line); border-right:1px solid var(--line)}
     .titlebar{padding:4px 8px; border-bottom:1px solid var(--line); color:var(--muted)}
     #view{background:#000; padding:8px; white-space:pre; overflow:hidden; min-height:25ch; min-width:25ch; line-height:1;}
     .term{padding:8px;border-left:1px solid var(--line);border-right:1px solid var(--line)}
     #hud{border-left:1px solid var(--line);}
-    #hud .panel{padding:8px;border-bottom:1px solid var(--line)}
+    #hud .panel{padding:6px 8px;border-bottom:1px solid var(--line); font-size:13px}
     .mono{font-family: ui-monospace, Menlo, Consolas, monospace}
-    .dim{color:#666}
-    .log{height:160px;overflow:auto;white-space:pre-line;color:var(--muted);}
+    .dim{color:#555}
+    .log{height:140px;overflow:auto;white-space:pre-line;color:var(--muted);}
     .help{font-size:12px;color:var(--muted)}
-    kbd{border:1px solid var(--line);padding:0 4px;margin:0 1px}
+    kbd{border:1px solid var(--line);padding:0 4px;margin:0 1px; font-size:11px}
 
-    /* Visibility gradient shades (applied to spans) */
-    .v0{opacity:1.0}
-    .v1{opacity:0.90}
-    .v2{opacity:0.78}
-    .v3{opacity:0.66}
-    .v4{opacity:0.54}
-    .v5{opacity:0.42}
-    .v6{opacity:0.32}
-    .v7{opacity:0.22}
-    .v8{opacity:0.14}
-    .v9{opacity:0.08}
-    .fog{color:#000} /* unexplored */
+    /* Visibility gradient */
+    .v0{opacity:1.0} .v1{opacity:0.90} .v2{opacity:0.78} .v3{opacity:0.66} .v4{opacity:0.54}
+    .v5{opacity:0.42} .v6{opacity:0.32} .v7{opacity:0.22} .v8{opacity:0.14} .v9{opacity:0.08}
+    .fog{color:#000}
+
+    /* Tile colors */
+    .soft{color:#964} .rubble{color:#753} .ore{color:#da6} .herb{color:#7b7} .bench{color:#69d}
+    .door{color:#d84} .tree{color:#484} .entity{color:#d55; font-weight:bold}
+    .item{color:#fc6}
+
+    /* Tool colors */
+    .toolSpade{color:var(--spade)} .toolClub{color:var(--club)} .toolHeart{color:var(--heart)} .toolDiamond{color:var(--diamond)}
+    .toolActive{background:#222;padding:0 2px}
+
+    /* Status colors */
+    .flagComplete{color:var(--success)} .flagMissing{color:var(--error)}
+    .unlockMsg{color:var(--success); font-weight:bold} .warnMsg{color:var(--warning)}
+    
+    /* Help overlay */
+    #helpOverlay{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+                 background:#111;border:2px solid var(--line);padding:20px;z-index:1000;
+                 max-width:600px;max-height:80vh;overflow-y:auto;display:none}
+    #helpOverlay.show{display:block}
+    #helpOverlay h3{margin-top:0;color:var(--ink)}
+    #helpOverlay ul{list-style:none;padding:0}
+    #helpOverlay li{margin:4px 0;color:var(--muted)}
+    .toolBar{display:flex;gap:8px;margin-top:4px}
+    .toolBtn{flex:1;text-align:center;padding:2px;border:1px solid var(--line);cursor:pointer}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <header class="mono">LOST POETS — ASCII Prototype · <span class="help">Move <kbd>WASD</kbd>/<kbd>Arrows</kbd> · <kbd>R</kbd> Rest · <kbd>O</kbd> Observe · <kbd>V</kbd> toggle visibility · <kbd>Q</kbd> Reload</span></header>
+    <header class="mono">LOST POETS — Origin Temple Tutorial · <span class="help">Move <kbd>WASD</kbd> · Shift+Dir=Use Tool · <kbd>1-4</kbd> Select Tool · <kbd>H</kbd> Help · <kbd>Q</kbd> Reload</span></header>
 
     <main id="game">
       <section class="frame">
-        <div class="titlebar mono">[ MAP 25×25 ]</div>
+        <div class="titlebar mono" id="mapTitle">[ ORIGIN TEMPLE 25×25 ]</div>
         <div class="term"><pre id="view" aria-label="playfield" tabindex="0"></pre></div>
         <div class="bezel"><div class="log mono" id="log"></div></div>
       </section>
 
       <aside id="hud" class="mono">
         <div class="panel">[ VITALS ]
-HP: <span id="hp"></span>
+HP: <span id="hp"></span>/<span id="hpMax"></span>  Stam: <span id="stam"></span>/<span id="stamMax"></span>
 STR:<span id="str"></span>  INT:<span id="int"></span>  AGI:<span id="agi"></span></div>
-        <div class="panel">[ HINTS ]
-? help · V toggles gradient visibility · . wait</div>
+        
+        <div class="panel">[ TOOLS ]
+<div class="toolBar">
+  <div class="toolBtn toolSpade" id="tool1">♠ 1</div>
+  <div class="toolBtn toolClub" id="tool2">♣ 2</div>
+  <div class="toolBtn toolHeart" id="tool3">♥ 3</div>
+  <div class="toolBtn toolDiamond" id="tool4">♦ 4</div>
+</div>
+Active: <span id="activeTool"></span></div>
+
+        <div class="panel">[ RESOURCES ]
+Ore: <span id="ore"></span>  Herb: <span id="herb"></span>
+Scrap: <span id="scrap"></span>  Key: <span id="key"></span></div>
+
+        <div class="panel">[ TUTORIAL ]
+<span id="tutDig"></span> Dig soft wall
+<span id="tutStrike"></span> Strike creature
+<span id="tutFocus"></span> Use Heart
+<span id="tutCraft"></span> Craft key at bench</div>
+
+        <div class="panel dim">[ CONTROLS ]
+<kbd>H</kbd>/<kbd>K</kbd> Help · <kbd>G</kbd> Pick up
+<kbd>.</kbd> Wait · <kbd>R</kbd> Rest · <kbd>O</kbd> Observe
+<kbd>V</kbd> Vis toggle · <kbd>?</kbd> Quick help</div>
       </aside>
     </main>
 
-    <footer class="mono">Monochrome, Qud-inspired frame. Gradient darkness (radius visibility) + pure-black fog of war. Seedable worldgen.</footer>
+    <footer class="mono">Bundle C: Origin Temple tutorial with tool progression, locked exit, and procedural forest overworld featuring living simulation.</footer>
+  </div>
+
+  <div id="helpOverlay">
+    <h3>LOST POETS — Help &amp; Tutorial</h3>
+    <ul>
+      <li><strong>Movement:</strong> WASD or Arrow Keys</li>
+      <li><strong>Tools:</strong> 1=♠Spade, 2=♣Club, 3=♥Heart, 4=♦Diamond</li>
+      <li><strong>Use Tool:</strong> Shift+Direction or E (facing dir)</li>
+      <li><strong>Actions:</strong> G=Pick up, R=Rest, O=Observe, .=Wait</li>
+      <li><strong>Tutorial Goals:</strong></li>
+      <li>&nbsp;&nbsp;• Dig soft walls (~) with Spade to clear corridor</li>
+      <li>&nbsp;&nbsp;• Strike rat (r) with Club to learn combat</li>
+      <li>&nbsp;&nbsp;• Use Heart in quiet room to learn focus/breathe</li>
+      <li>&nbsp;&nbsp;• Refine ore or combine materials at bench (=) with Diamond</li>
+      <li>&nbsp;&nbsp;• Collect key and unlock exit door (+) to reach forest</li>
+      <li><strong>Other:</strong> V=Toggle visibility, Q=Reload, H/K=Toggle help</li>
+    </ul>
+    <p style="text-align:center;color:var(--muted);margin-top:20px">Press H or K to close</p>
   </div>
 
 <script>
 // =============================
-// LOST POETS — Minimal ASCII Engine (monochrome)
+// LOST POETS — Bundle C: Origin Temple + Forest Overworld
 // =============================
-const WIDTH = 25, HEIGHT = 25;          // viewport size
-const WORLD_W = 25, WORLD_H = 25;       // world size (==viewport for now)
-const VIS_RADIUS = 8;                   // visibility radius around player
 
+// ========== CONSTANTS ==========
+const VIEWPORT_W = 25, VIEWPORT_H = 25;
+const BASE_VIS_RADIUS = 8;
+const TEMPLE_W = 25, TEMPLE_H = 25;
+const FOREST_W = 80, FOREST_H = 80;
+
+// ========== TEMPLE LAYOUT ==========
+const TEMPLE_LAYOUT = [
+  "#########################",
+  "#.......................#",
+  "#.....~~~~~~~~~~........#",
+  "#.....~........~........#",
+  "#.....~........~........#",
+  "#.....~...r....~........#",
+  "#.....~........~........#",
+  "#.....~~~~~~~~~~........#",
+  "#.......................#",
+  "#........#####..........#",
+  "#........#...#..........#",
+  "#........#...#..........#",
+  "#........#####..........#",
+  "#.......................#",
+  "#..=.....*..,...;.......#",
+  "#.......................#",
+  "#.......................#",
+  "#.......................#",
+  "#.......................#",
+  "#.......................#",
+  "#.......................#",
+  "#...........+...........#",
+  "#...........~...........#",
+  "#...........~...........#",
+  "#########################"
+];
+
+const QUIET_ROOM = {x1:8, y1:9, x2:13, y2:12}; // Stamina drain zone
+
+// ========== TILE DEFINITIONS ==========
 const TILES = {
-  FLOOR: {ch:'.', walk:true},
-  WALL:  {ch:'#', walk:false},
-  PLAYER:{ch:'@', walk:true}
+  FLOOR:    {ch:'.', walk:true, cls:''},
+  WALL:     {ch:'#', walk:false, cls:''},
+  SOFT:     {ch:'~', walk:false, cls:'soft'},
+  RUBBLE:   {ch:',', walk:true, cls:'rubble'},
+  ORE:      {ch:'*', walk:true, cls:'ore'},
+  HERB:     {ch:';', walk:true, cls:'herb'},
+  BENCH:    {ch:'=', walk:true, cls:'bench'},
+  DOOR:     {ch:'+', walk:false, cls:'door'},
+  OPEN_DOOR:{ch:'/', walk:true, cls:'door'},
+  TREE:     {ch:'T', walk:false, cls:'tree'},
+  PLAYER:   {ch:'@', walk:true, cls:''}
 };
 
+// ========== STATE ==========
 const state = {
   seed: (Date.now()%2147483647),
   map: [],
   visibilityOn: true,
-  seen: new Set(),      // tiles discovered at least once
-  player: {x:12,y:12,hp:10,str:5,int:5,agi:5},
-  log: []
+  seen: new Set(),
+  player: {x:2, y:1, hp:10, hpMax:10, str:5, int:5, agi:5, stamina:10, stamMax:10, facing:{dx:0,dy:1}},
+  region: {type:'temple', width:TEMPLE_W, height:TEMPLE_H, camX:0, camY:0},
+  activeTool: 1, // 1=Spade, 2=Club, 3=Heart, 4=Diamond
+  tutorial: {didDig:false, didStrike:false, didFocus:false, didCraftKey:false},
+  resources: {ore:0, herb:0, scrap:0, key:0},
+  entities: [], // {type, x, y, hp, glyph}
+  items: [], // {type, x, y, glyph}
+  log: [],
+  turns: 0,
+  currentLightDelta: 0,
+  helpOpen: false
 };
 
-// ---------- RNG (LCG)
-let _seed=1; function srand(s){ _seed=s%2147483647; if(_seed<=0) _seed+=2147483646; }
+// ========== RNG ==========
+let _seed=1;
+function srand(s){ _seed=s%2147483647; if(_seed<=0) _seed+=2147483646; }
 function rand(){ return _seed = _seed*16807 % 2147483647; }
 function rf(){ return (rand()-1)/2147483646; }
 
-// ---------- Map Gen (rooms + random walks)
-function makeMap(){
-  const m = Array.from({length:WORLD_H},()=>Array.from({length:WORLD_W},()=>TILES.WALL));
-  let x=Math.floor(WORLD_W/2), y=Math.floor(WORLD_H/2); m[y][x]=TILES.FLOOR;
-  for(let i=0;i<WORLD_W*WORLD_H*6;i++){
-    const [dx,dy] = [[1,0],[-1,0],[0,1],[0,-1]][Math.floor(rf()*4)];
-    x=Math.max(1,Math.min(WORLD_W-2,x+dx)); y=Math.max(1,Math.min(WORLD_H-2,y+dy));
-    m[y][x]=TILES.FLOOR; if(rf()<0.35){ if(x+1<WORLD_W-1)m[y][x+1]=TILES.FLOOR; if(y+1<WORLD_H-1)m[y+1][x]=TILES.FLOOR; }
-  }
-  for(let r=0;r<6;r++){
-    const rw=3+Math.floor(rf()*6), rh=3+Math.floor(rf()*6);
-    const rx=1+Math.floor(rf()*(WORLD_W-rw-2));
-    const ry=1+Math.floor(rf()*(WORLD_H-rh-2));
-    for(let yy=ry; yy<ry+rh; yy++) for(let xx=rx; xx<rx+rw; xx++) m[yy][xx]=TILES.FLOOR;
-  }
-  const p = findFirst(m, (v)=>v===TILES.FLOOR, Math.floor(WORLD_W/2), Math.floor(WORLD_H/2));
-  if(p){ state.player.x=p.x; state.player.y=p.y; }
+// ========== REGION SETUP ==========
+function loadTemple(){
+  const m = Array.from({length:TEMPLE_H}, (_, y)=>
+    Array.from({length:TEMPLE_W}, (_, x)=>{
+      const ch = TEMPLE_LAYOUT[y][x];
+      if(ch==='#') return TILES.WALL;
+      if(ch==='~') return TILES.SOFT;
+      if(ch===',') return TILES.RUBBLE;
+      if(ch==='*') { state.items.push({type:'ore',x,y,glyph:'*'}); return TILES.FLOOR; }
+      if(ch===';') { state.items.push({type:'herb',x,y,glyph:';'}); return TILES.FLOOR; }
+      if(ch==='=') return TILES.BENCH;
+      if(ch==='+') return TILES.DOOR;
+      if(ch==='/') return TILES.OPEN_DOOR;
+      if(ch==='r') { state.entities.push({type:'rat',x,y,hp:3,glyph:'r'}); return TILES.FLOOR; }
+      return TILES.FLOOR;
+    })
+  );
+  state.player.x=2; state.player.y=1;
+  state.region = {type:'temple', width:TEMPLE_W, height:TEMPLE_H, camX:0, camY:0};
   return m;
 }
 
-function findFirst(map, pred, sx, sy){
-  const q=[{x:sx,y:sy}], seen=new Set([sy*1000+sx]);
-  while(q.length){
-    const {x,y}=q.shift(); if(pred(map[y][x])) return {x,y};
-    for(const [dx,dy] of [[1,0],[ -1,0],[0,1],[0,-1]]){
-      const nx=x+dx, ny=y+dy, k=ny*1000+nx;
-      if(nx>0&&ny>0&&nx<WORLD_W-1&&ny<WORLD_H-1&&!seen.has(k)){ q.push({x:nx,y:ny}); seen.add(k); }
-    }
+function generateForest(w=FOREST_W, h=FOREST_H){
+  const m = Array.from({length:h}, ()=>Array.from({length:w}, ()=>TILES.FLOOR));
+  
+  // Border walls
+  for(let x=0;x<w;x++){ m[0][x]=TILES.WALL; m[h-1][x]=TILES.WALL; }
+  for(let y=0;y<h;y++){ m[y][0]=TILES.WALL; m[y][w-1]=TILES.WALL; }
+  
+  // Trees scattered
+  for(let i=0; i<w*h*0.15; i++){
+    const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
+    m[y][x]=TILES.TREE;
   }
+  
+  // Resources
+  for(let i=0; i<80; i++){
+    const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
+    if(m[y][x]===TILES.FLOOR) state.items.push({type:'herb',x,y,glyph:';'});
+  }
+  for(let i=0; i<40; i++){
+    const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
+    if(m[y][x]===TILES.FLOOR) state.items.push({type:'ore',x,y,glyph:'*'});
+  }
+  for(let i=0; i<60; i++){
+    const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
+    if(m[y][x]===TILES.FLOOR) m[y][x]=TILES.RUBBLE;
+  }
+  for(let i=0; i<30; i++){
+    const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
+    if(m[y][x]===TILES.FLOOR) m[y][x]=TILES.SOFT;
+  }
+  
+  // Entry portal
+  m[Math.floor(h/2)][Math.floor(w/2)]=TILES.OPEN_DOOR;
+  
+  // Spawn some creatures
+  for(let i=0; i<5; i++){
+    const x=10+Math.floor(rf()*(w-20)), y=10+Math.floor(rf()*(h-20));
+    if(m[y][x]===TILES.FLOOR) state.entities.push({type:'scav',x,y,hp:5,glyph:'r'});
+  }
+  
+  return m;
 }
 
-// ---------- Visibility (radial, non-occluded)
+function transitionToForest(){
+  log('<span class="unlockMsg">The door opens! A vast forest awaits beyond...</span>');
+  state.map = generateForest();
+  state.region = {type:'forest', width:FOREST_W, height:FOREST_H, camX:0, camY:0};
+  state.player.x = Math.floor(FOREST_W/2);
+  state.player.y = Math.floor(FOREST_H/2);
+  state.seen.clear();
+  updateCamera();
+  render();
+}
+
+function updateCamera(){
+  if(state.region.type==='temple') return; // No camera in temple
+  const {width, height} = state.region;
+  const halfW = Math.floor(VIEWPORT_W/2), halfH = Math.floor(VIEWPORT_H/2);
+  state.region.camX = Math.max(0, Math.min(width-VIEWPORT_W, state.player.x - halfW));
+  state.region.camY = Math.max(0, Math.min(height-VIEWPORT_H, state.player.y - halfH));
+}
+
+// ========== VISIBILITY ==========
 function visibleDistance(x,y){
-  const dx = x - state.player.x;
-  const dy = y - state.player.y;
+  const dx = x - state.player.x, dy = y - state.player.y;
   return Math.sqrt(dx*dx + dy*dy);
 }
 
-function shadeClass(dist){
-  // Map distance [0, VIS_RADIUS] to classes v0..v9 (0 = brightest)
+function getCurrentVisRadius(){
+  const cycle = [0,1,2,1,0,-1,-2,-1];
+  const phase = Math.floor(state.turns/20) % cycle.length;
+  return BASE_VIS_RADIUS + cycle[phase];
+}
+
+function shadeClass(dist, visRadius){
   if(dist<=0) return 'v0';
-  const t = Math.min(1, dist / VIS_RADIUS);
+  const t = Math.min(1, dist / visRadius);
   const idx = Math.min(9, Math.floor(t*10));
   return 'v'+idx;
 }
 
-// ---------- Rendering (spans per glyph for gradient control)
-function render(){
-  let out = '';
-  for(let y=0;y<HEIGHT;y++){
-    for(let x=0;x<WIDTH;x++){
-      // Player always bright
-      if(x===state.player.x && y===state.player.y){
-        out += `<span class="v0">${TILES.PLAYER.ch}</span>`; 
-        state.seen.add(y*1000+x);
-        continue;
-      }
-      const k = y*1000 + x;
-      const seen = state.seen.has(k);
+// ========== TOOLS ==========
+function selectTool(n){ state.activeTool=n; log(`Tool: ${toolName(n)}`); render(); }
 
-      // Compute current visibility
-      let ch = state.map[y][x].ch;
-      if(state.visibilityOn){
-        const dist = visibleDistance(x,y);
-        const isVisible = dist <= VIS_RADIUS;
-        if(isVisible){
-          state.seen.add(k);
-          out += `<span class="${shadeClass(dist)}">${ch}</span>`;
-        } else {
-          if(!seen){
-            // unexplored = pure black
-            out += `<span class="fog">${' '}</span>`;
-          } else {
-            // discovered but out of sight: very dark
-            out += `<span class="v9">${ch}</span>`;
-          }
-        }
-      } else {
-        // Visibility disabled: everything shown at medium brightness
-        state.seen.add(k);
-        out += `<span class="v4">${ch}</span>`;
+function toolName(n){
+  return ['','♠ Spade','♣ Club','♥ Heart','♦ Diamond'][n];
+}
+
+function useTool(dx, dy){
+  const tx = state.player.x+dx, ty = state.player.y+dy;
+  if(!inBounds(tx,ty)) return;
+  
+  state.player.facing = {dx,dy};
+  
+  if(state.activeTool===1) useSpade(tx,ty);
+  else if(state.activeTool===2) useClub(tx,ty);
+  else if(state.activeTool===3) useHeart();
+  else if(state.activeTool===4) useDiamond(tx,ty);
+  
+  worldTick();
+}
+
+function useSpade(x,y){
+  const tile = state.map[y][x];
+  if(tile===TILES.SOFT){
+    state.map[y][x]=TILES.FLOOR;
+    log('<span class="unlockMsg">You dig away the soft earth.</span>');
+    if(!state.tutorial.didDig){
+      state.tutorial.didDig=true;
+      log('<span class="unlockMsg">✓ Tutorial: Learned to dig!</span>');
+    }
+  } else if(tile===TILES.RUBBLE){
+    state.map[y][x]=TILES.FLOOR;
+    state.resources.scrap++;
+    log('You clear rubble, gaining scrap.');
+  } else {
+    log('Nothing to dig here.');
+  }
+}
+
+function useClub(x,y){
+  const ent = state.entities.find(e=>e.x===x&&e.y===y);
+  if(ent){
+    ent.hp -= state.player.str;
+    log(`You strike the ${ent.type} for ${state.player.str} damage!`);
+    if(ent.hp<=0){
+      log(`<span class="unlockMsg">The ${ent.type} is defeated!</span>`);
+      state.entities = state.entities.filter(e=>e!==ent);
+      if(!state.tutorial.didStrike){
+        state.tutorial.didStrike=true;
+        log('<span class="unlockMsg">✓ Tutorial: Learned to strike!</span>');
       }
     }
-    if(y<HEIGHT-1) out+='\n';
+  } else {
+    log('Nothing to strike there.');
   }
+}
+
+function useHeart(){
+  if(state.player.hp < state.player.hpMax && state.player.stamina>=2){
+    state.player.hp = Math.min(state.player.hpMax, state.player.hp+1);
+    state.player.stamina -= 2;
+    log('You focus, restoring 1 HP.');
+  } else if(state.player.stamina < state.player.stamMax){
+    state.player.stamina = Math.min(state.player.stamMax, state.player.stamina+3);
+    log('You breathe deeply, restoring stamina.');
+  } else {
+    log('You are already at full health and stamina.');
+  }
+  
+  if(!state.tutorial.didFocus){
+    state.tutorial.didFocus=true;
+    log('<span class="unlockMsg">✓ Tutorial: Learned Heart technique!</span>');
+  }
+}
+
+function useDiamond(x,y){
+  const tile = state.map[y][x];
+  if(tile===TILES.BENCH){
+    if(state.resources.ore>=1){
+      state.resources.ore--;
+      state.resources.key++;
+      log('<span class="unlockMsg">You refine ore into a key at the bench!</span>');
+      if(!state.tutorial.didCraftKey){
+        state.tutorial.didCraftKey=true;
+        log('<span class="unlockMsg">✓ Tutorial: Learned to craft!</span>');
+      }
+    } else if(state.resources.herb>=1 && state.resources.scrap>=1){
+      state.resources.herb--;
+      state.resources.scrap--;
+      state.resources.key++;
+      log('<span class="unlockMsg">You combine materials into a key at the bench!</span>');
+      if(!state.tutorial.didCraftKey){
+        state.tutorial.didCraftKey=true;
+        log('<span class="unlockMsg">✓ Tutorial: Learned to craft!</span>');
+      }
+    } else {
+      log('Need ore OR (herb+scrap) to craft key at bench.');
+    }
+  } else if(tile===TILES.DOOR){
+    tryUnlockDoor(x,y);
+  } else {
+    log('Nothing to refine or unlock here.');
+  }
+}
+
+function tryUnlockDoor(x,y){
+  const missing = [];
+  if(!state.tutorial.didDig) missing.push('dig');
+  if(!state.tutorial.didStrike) missing.push('strike');
+  if(!state.tutorial.didFocus) missing.push('focus');
+  if(!state.tutorial.didCraftKey) missing.push('craft key');
+  
+  if(missing.length>0){
+    log(`<span class="warnMsg">Door locked! Missing: ${missing.join(', ')}</span>`);
+    return;
+  }
+  
+  if(state.resources.key<1){
+    log('<span class="warnMsg">Need a key to unlock this door!</span>');
+    return;
+  }
+  
+  state.resources.key--;
+  state.map[y][x] = TILES.OPEN_DOOR;
+  log('<span class="unlockMsg">You unlock the exit door with your key!</span>');
+}
+
+// ========== ACTIONS ==========
+function tryMove(dx,dy){
+  const nx=state.player.x+dx, ny=state.player.y+dy;
+  if(!inBounds(nx,ny)) return;
+  
+  state.player.facing={dx,dy};
+  
+  const tile = state.map[ny][nx];
+  if(!tile.walk){
+    if(tile===TILES.DOOR){
+      log('The door is locked.');
+    } else {
+      log('Blocked.');
+    }
+    return;
+  }
+  
+  // Check for entity collision
+  if(state.entities.find(e=>e.x===nx&&e.y===ny)){
+    log('Something is in the way.');
+    return;
+  }
+  
+  state.player.x=nx; state.player.y=ny;
+  inc('agi',0.01);
+  
+  // Check for transition
+  if(tile===TILES.OPEN_DOOR && state.region.type==='temple'){
+    transitionToForest();
+    return;
+  }
+  
+  updateCamera();
+  worldTick();
+}
+
+function rest(){
+  if(state.player.hp<state.player.hpMax){
+    state.player.hp = Math.min(state.player.hpMax, state.player.hp+1);
+    inc('int',0.01);
+    log('You rest, recovering 1 HP.');
+  } else {
+    log('Already at full health.');
+  }
+  worldTick();
+}
+
+function observe(){
+  inc('int',0.02);
+  log('You observe your surroundings carefully.');
+  render();
+}
+
+function pickup(){
+  const item = state.items.find(i=>i.x===state.player.x&&i.y===state.player.y);
+  if(item){
+    state.resources[item.type]++;
+    state.items = state.items.filter(i=>i!==item);
+    log(`Picked up ${item.type}.`);
+  } else {
+    log('Nothing to pick up here.');
+  }
+  render();
+}
+
+function wait(){
+  log('You wait.');
+  worldTick();
+}
+
+function inc(k,amt){ state.player[k]=Math.round((state.player[k]+amt)*100)/100; }
+function inBounds(x,y){ return x>=0&&y>=0&&x<state.region.width&&y<state.region.height; }
+
+// ========== WORLD SIMULATION ==========
+function worldTick(){
+  state.turns++;
+  
+  // Stamina drain in quiet room (temple only)
+  if(state.region.type==='temple'){
+    const {x,y} = state.player;
+    if(x>=QUIET_ROOM.x1 && x<=QUIET_ROOM.x2 && y>=QUIET_ROOM.y1 && y<=QUIET_ROOM.y2){
+      state.player.stamina = Math.max(0, state.player.stamina-1);
+      if(state.player.stamina===0) log('<span class="warnMsg">The oppressive silence drains your stamina!</span>');
+    }
+  }
+  
+  // Forest simulation
+  if(state.region.type==='forest'){
+    if(state.turns%2===0) simulateCreatures();
+    if(state.turns%10===0) simulateFlora();
+    if(state.turns%15===0) simulateGeology();
+    if(state.turns%30===0) trySpawnCreature();
+  }
+  
+  render();
+}
+
+function simulateCreatures(){
+  for(const ent of state.entities){
+    if(ent.type==='scav'){
+      const dist = Math.abs(ent.x-state.player.x) + Math.abs(ent.y-state.player.y);
+      if(dist<=6 && dist>1){
+        // Chase player
+        const dx = Math.sign(state.player.x - ent.x);
+        const dy = Math.sign(state.player.y - ent.y);
+        const nx = ent.x + (rf()<0.5 ? dx : 0);
+        const ny = ent.y + (rf()<0.5 ? dy : 0);
+        if(inBounds(nx,ny) && state.map[ny][nx].walk && !state.entities.find(e=>e.x===nx&&e.y===ny&&e!==ent)){
+          ent.x=nx; ent.y=ny;
+        }
+      } else if(dist>1 && rf()<0.3){
+        // Wander
+        const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+        const [dx,dy] = dirs[Math.floor(rf()*4)];
+        const nx=ent.x+dx, ny=ent.y+dy;
+        if(inBounds(nx,ny) && state.map[ny][nx].walk && !state.entities.find(e=>e.x===nx&&e.y===ny&&e!==ent)){
+          ent.x=nx; ent.y=ny;
+        }
+      }
+    }
+  }
+}
+
+function simulateFlora(){
+  const herbs = state.items.filter(i=>i.type==='herb');
+  for(const h of herbs){
+    if(rf()<0.05){
+      const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+      const [dx,dy] = dirs[Math.floor(rf()*4)];
+      const nx=h.x+dx, ny=h.y+dy;
+      if(inBounds(nx,ny) && state.map[ny][nx]===TILES.FLOOR && !state.items.find(i=>i.x===nx&&i.y===ny)){
+        state.items.push({type:'herb',x:nx,y:ny,glyph:';'});
+      }
+    }
+  }
+  // Occasional wither
+  if(rf()<0.02 && herbs.length>20){
+    const idx = Math.floor(rf()*herbs.length);
+    state.items = state.items.filter((_, i)=>i!==state.items.indexOf(herbs[idx]));
+  }
+}
+
+function simulateGeology(){
+  const {width, height} = state.region;
+  for(let i=0; i<20; i++){
+    const x=1+Math.floor(rf()*(width-2)), y=1+Math.floor(rf()*(height-2));
+    const tile = state.map[y][x];
+    
+    if(tile===TILES.WALL && rf()<0.05){
+      state.map[y][x] = TILES.SOFT; // Wall softens
+    } else if(tile===TILES.SOFT && rf()<0.1){
+      state.map[y][x] = TILES.RUBBLE; // Soft collapses
+    } else if(tile===TILES.RUBBLE && rf()<0.05){
+      state.map[y][x] = TILES.FLOOR; // Rubble erodes
+    }
+  }
+  
+  // Rare ore bloom
+  if(rf()<0.01){
+    const x=1+Math.floor(rf()*(width-2)), y=1+Math.floor(rf()*(height-2));
+    if(state.map[y][x]===TILES.FLOOR && !state.items.find(i=>i.x===x&&i.y===y)){
+      state.items.push({type:'ore',x,y,glyph:'*'});
+    }
+  }
+}
+
+function trySpawnCreature(){
+  if(state.entities.length>=15) return;
+  const {width, height} = state.region;
+  const x=10+Math.floor(rf()*(width-20)), y=10+Math.floor(rf()*(height-20));
+  if(state.map[y][x]===TILES.FLOOR){
+    state.entities.push({type:'scav',x,y,hp:5,glyph:'r'});
+  }
+}
+
+// ========== RENDERING ==========
+function render(){
+  const visRadius = getCurrentVisRadius();
+  let out = '';
+  
+  const {camX, camY} = state.region;
+  
+  for(let vy=0; vy<VIEWPORT_H; vy++){
+    for(let vx=0; vx<VIEWPORT_W; vx++){
+      const wx = vx + camX, wy = vy + camY;
+      
+      // Player
+      if(wx===state.player.x && wy===state.player.y){
+        out += `<span class="v0">${TILES.PLAYER.ch}</span>`;
+        state.seen.add(wy*10000+wx);
+        continue;
+      }
+      
+      const k = wy*10000 + wx;
+      const seen = state.seen.has(k);
+      
+      // Visibility
+      const dist = visibleDistance(wx,wy);
+      const isVisible = state.visibilityOn ? dist <= visRadius : true;
+      
+      if(isVisible){
+        state.seen.add(k);
+        
+        // Entities
+        const ent = state.entities.find(e=>e.x===wx&&e.y===wy);
+        if(ent){
+          out += `<span class="${shadeClass(dist,visRadius)} entity">${ent.glyph}</span>`;
+          continue;
+        }
+        
+        // Items
+        const item = state.items.find(i=>i.x===wx&&i.y===wy);
+        if(item){
+          const cls = item.type==='ore'?'ore':item.type==='herb'?'herb':'item';
+          out += `<span class="${shadeClass(dist,visRadius)} ${cls}">${item.glyph}</span>`;
+          continue;
+        }
+        
+        // Tiles
+        const tile = state.map[wy][wx];
+        out += `<span class="${shadeClass(dist,visRadius)} ${tile.cls}">${tile.ch}</span>`;
+      } else {
+        if(!seen){
+          out += `<span class="fog"> </span>`;
+        } else {
+          const tile = state.map[wy][wx];
+          out += `<span class="v9 ${tile.cls}">${tile.ch}</span>`;
+        }
+      }
+    }
+    if(vy<VIEWPORT_H-1) out+='\n';
+  }
+  
   view.innerHTML = out;
-  hp.textContent = pad(state.player.hp,2);
+  updateHUD();
+}
+
+function updateHUD(){
+  hp.textContent = state.player.hp;
+  hpMax.textContent = state.player.hpMax;
+  stam.textContent = state.player.stamina;
+  stamMax.textContent = state.player.stamMax;
   str.textContent = pad(state.player.str,2);
   int_.textContent = pad(state.player.int,2);
   agi.textContent = pad(state.player.agi,2);
-  logEl.textContent = state.log.slice(-10).join('\n');
+  
+  ore.textContent = state.resources.ore;
+  herb.textContent = state.resources.herb;
+  scrap.textContent = state.resources.scrap;
+  key.textContent = state.resources.key;
+  
+  activeTool.textContent = toolName(state.activeTool);
+  
+  // Tool buttons
+  for(let i=1;i<=4;i++){
+    const el = document.getElementById('tool'+i);
+    if(state.activeTool===i) el.classList.add('toolActive');
+    else el.classList.remove('toolActive');
+  }
+  
+  // Tutorial flags
+  tutDig.innerHTML = state.tutorial.didDig ? '<span class="flagComplete">✓</span>' : '<span class="flagMissing">✗</span>';
+  tutStrike.innerHTML = state.tutorial.didStrike ? '<span class="flagComplete">✓</span>' : '<span class="flagMissing">✗</span>';
+  tutFocus.innerHTML = state.tutorial.didFocus ? '<span class="flagComplete">✓</span>' : '<span class="flagMissing">✗</span>';
+  tutCraft.innerHTML = state.tutorial.didCraftKey ? '<span class="flagComplete">✓</span>' : '<span class="flagMissing">✗</span>';
+  
+  // Map title
+  if(state.region.type==='temple'){
+    mapTitle.textContent = '[ ORIGIN TEMPLE 25×25 ]';
+  } else {
+    mapTitle.textContent = `[ FOREST OVERWORLD ${FOREST_W}×${FOREST_H} ]`;
+  }
+  
+  logEl.innerHTML = state.log.slice(-12).join('\n');
 }
 
 function pad(v,n){ return (''+Math.round(v)).padStart(n,' '); }
-function log(msg){ state.log.push(msg); }
+function log(msg){ state.log.push(msg); if(state.log.length>100) state.log.shift(); }
 
-// ---------- Actions
-function tryMove(dx,dy){
-  const nx=state.player.x+dx, ny=state.player.y+dy; if(!inBounds(nx,ny)) return;
-  if(state.map[ny][nx]===TILES.WALL){ log('Bump.'); return; }
-  state.player.x=nx; state.player.y=ny; inc('agi',0.01);
+function toggleHelp(){
+  state.helpOpen = !state.helpOpen;
+  helpOverlay.className = state.helpOpen ? 'show' : '';
+  if(!state.helpOpen) view.focus();
 }
-function rest(){ if(state.map[state.player.y][state.player.x]!==TILES.FLOOR){ log('Cannot rest here.'); return; }
-  state.player.hp=Math.min(10,state.player.hp+1); inc('int',0.01); log('You rest.'); }
-function observe(){ inc('int',0.02); log('You observe.'); render(); }
 
-function inc(k,amt){ state.player[k]=Math.round((state.player[k]+amt)*100)/100; }
-function inBounds(x,y){ return x>=0&&y>=0&&x<WORLD_W&&y<WORLD_H; }
-
-// ---------- Input
+// ========== INPUT ==========
 addEventListener('keydown', (e)=>{
-  const k=e.key; if(['ArrowUp','w','W'].includes(k)) { tryMove(0,-1); e.preventDefault(); }
-  else if(['ArrowDown','s','S'].includes(k)) { tryMove(0,1); e.preventDefault(); }
-  else if(['ArrowLeft','a','A'].includes(k)) { tryMove(-1,0); e.preventDefault(); }
-  else if(['ArrowRight','d','D'].includes(k)) { tryMove(1,0); e.preventDefault(); }
-  else if(k==='.' ) { log('Wait.'); }
+  if(state.helpOpen && (e.key==='h'||e.key==='H'||e.key==='k'||e.key==='K'||e.key==='Escape')){
+    toggleHelp();
+    e.preventDefault();
+    return;
+  }
+  
+  const k=e.key;
+  
+  // Movement with Shift = tool use
+  if(['ArrowUp','w','W'].includes(k)){
+    if(e.shiftKey) useTool(0,-1); else tryMove(0,-1);
+    e.preventDefault();
+  } else if(['ArrowDown','s','S'].includes(k)){
+    if(e.shiftKey) useTool(0,1); else tryMove(0,1);
+    e.preventDefault();
+  } else if(['ArrowLeft','a','A'].includes(k)){
+    if(e.shiftKey) useTool(-1,0); else tryMove(-1,0);
+    e.preventDefault();
+  } else if(['ArrowRight','d','D'].includes(k)){
+    if(e.shiftKey) useTool(1,0); else tryMove(1,0);
+    e.preventDefault();
+  }
+  // Tool selection
+  else if(k==='1') selectTool(1);
+  else if(k==='2') selectTool(2);
+  else if(k==='3') selectTool(3);
+  else if(k==='4') selectTool(4);
+  // Actions
+  else if(k==='e'||k==='E') useTool(state.player.facing.dx, state.player.facing.dy);
+  else if(k==='g'||k==='G') pickup();
+  else if(k==='.') wait();
   else if(k==='r'||k==='R') rest();
   else if(k==='o'||k==='O') observe();
-  else if(k==='v'||k==='V') { state.visibilityOn=!state.visibilityOn; log('Visibility '+(state.visibilityOn?'ON':'OFF')); }
+  else if(k==='v'||k==='V') { state.visibilityOn=!state.visibilityOn; log('Visibility '+(state.visibilityOn?'ON':'OFF')); render(); }
+  else if(k==='h'||k==='H'||k==='k'||k==='K') toggleHelp();
   else if(k==='q'||k==='Q') location.reload();
-  else if(k==='?') log('Help: WASD/arrows move · . wait · R rest · O observe · V toggle visibility · Q reload');
-  render();
+  else if(k==='?') log('Press H or K for detailed help.');
 });
 
-// ---------- Boot
+// Tool button clicks
+for(let i=1;i<=4;i++){
+  document.getElementById('tool'+i).addEventListener('click', ()=>selectTool(i));
+}
+
+// ========== BOOT ==========
 const view = document.getElementById('view');
 const hp = document.getElementById('hp');
+const hpMax = document.getElementById('hpMax');
+const stam = document.getElementById('stam');
+const stamMax = document.getElementById('stamMax');
 const str = document.getElementById('str');
 const int_ = document.getElementById('int');
 const agi = document.getElementById('agi');
+const ore = document.getElementById('ore');
+const herb = document.getElementById('herb');
+const scrap = document.getElementById('scrap');
+const key = document.getElementById('key');
+const activeTool = document.getElementById('activeTool');
+const tutDig = document.getElementById('tutDig');
+const tutStrike = document.getElementById('tutStrike');
+const tutFocus = document.getElementById('tutFocus');
+const tutCraft = document.getElementById('tutCraft');
+const mapTitle = document.getElementById('mapTitle');
 const logEl = document.getElementById('log');
+const helpOverlay = document.getElementById('helpOverlay');
 
 (function init(){
   const urlSeed = new URLSearchParams(location.search).get('seed');
-  srand(urlSeed? parseInt(urlSeed,10) : state.seed);
-  state.map = makeMap();
-  log('Seed '+_seed+'. Welcome.');
-  // Prime seen set for starting tile
-  state.seen.add(state.player.y*1000+state.player.x);
+  srand(urlSeed ? parseInt(urlSeed,10) : state.seed);
+  state.map = loadTemple();
+  log('Welcome to the Origin Temple. Learn the four tools to escape.');
+  state.seen.add(state.player.y*10000+state.player.x);
   render();
   view.focus();
 })();
