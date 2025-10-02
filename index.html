@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>Mini Fortress — 0.1</title>
+<style>
+  :root{--bg:#0d1117;--ink:#e6edf3;--muted:#9da6b6;--panel:#161b22;--accent:#6ea8fe;--good:#33d17a;--warn:#f7c14a;--bad:#ff6b6b;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:13px/1.35 ui-monospace,Menlo,Consolas,monospace}
+  .wrap{display:grid;grid-template-rows:auto 1fr auto; height:100%}
+  .top{display:flex;gap:8px;align-items:center;padding:8px;border-bottom:1px solid #263241;background:var(--panel)}
+  .btn{border:1px solid #2b3a4d;background:#101521;color:var(--ink);border-radius:6px;padding:6px 10px;cursor:pointer}
+  .btn:active{transform:translateY(1px)}
+  .pill{padding:6px 10px;border:1px solid #2b3a4d;border-radius:999px}
+  .stat{color:var(--muted)}
+  #view{width:100%;height:100%;touch-action:none;display:block;background:#0b0f14}
+  .bottom{display:grid;grid-template-columns:1fr 240px;gap:8px;padding:8px;border-top:1px solid #263241;background:var(--panel)}
+  #log{background:#0f1420;border:1px solid #243247;border-radius:6px;padding:8px;overflow:auto;max-height:28vh}
+  #ui{display:flex;flex-wrap:wrap;gap:8px;align-content:start}
+  .lbl{display:flex;align-items:center;gap:6px}
+  input[type="range"]{width:120px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <button class="btn" id="modeDig">🪓 Dig</button>
+    <button class="btn" id="modeCancel">🚫 Cancel</button>
+    <button class="btn" id="pause">⏯️ Pause</button>
+    <button class="btn" id="step">⏭️ Step</button>
+    <button class="btn" id="save">💾 Save</button>
+    <button class="btn" id="load">📂 Load</button>
+    <span class="pill stat">Speed <input id="speed" type="range" min="1" max="5" value="3"/></span>
+    <span class="pill stat">Zoom <input id="zoom" type="range" min="6" max="32" value="16"/></span>
+    <span class="pill stat" id="info">Tick 0 • FPS —</span>
+  </div>
+
+  <canvas id="view"></canvas>
+
+  <div class="bottom">
+    <div id="log"></div>
+    <div id="ui">
+      <div class="lbl"><input id="grid" type="checkbox" checked/> show grid</div>
+      <div class="lbl"><input id="names" type="checkbox" checked/> show dwarf</div>
+      <div class="lbl"><input id="follow" type="checkbox"/> camera follow</div>
+      <div class="lbl"><input id="fog" type="checkbox" checked/> fog of war</div>
+      <div class="lbl"><input id="markers" type="checkbox" checked/> show designations</div>
+      <div class="lbl"><input id="shadows" type="checkbox" checked/> soft shading</div>
+      <small class="stat">Tap tiles to toggle dig (🪓). Two-finger pan, pinch to zoom.</small>
+    </div>
+  </div>
+</div>
+
+<script>
+// ======== CONFIG / TYPES ========
+const W = 80, H = 48;   // tiles (fits phones w/ zoom)
+const Tile = { AIR:0, DIRT:1, ROCK:2, STAIRS:3 };
+const Solid = t => (t===Tile.DIRT || t===Tile.ROCK);
+const Diggable = t => (t===Tile.DIRT || t===Tile.ROCK);
+const DIRS = [[1,0],[-1,0],[0,1],[0,-1]];
+const clamp = (v,a,b)=>v<a?a:v>b?b:v;
+const rand = (n)=>Math.floor(Math.random()*n);
+const inb = (x,y)=>x>=0&&y>=0&&x<W&&y<H;
+
+// ======== STATE ========
+let grid = new Uint8Array(W*H);
+let marked = new Uint8Array(W*H); // 0 none, 1 dig
+let seen = new Uint8Array(W*H);
+let tick=0, running=true, speed=3, fps=0;
+let cam = {x:0,y:0, z:16};
+let dwarf = {id:"Urist", x:Math.floor(W/2), y:8, hunger:0, energy:100, path:[], job:null};
+let options = {grid:true,names:true,follow:false,fog:true,markers:true,shadows:true};
+const at=(x,y)=>grid[y*W+x];
+const set=(x,y,v)=>grid[y*W+x]=v;
+const mk=(x,y)=>marked[y*W+x];
+const setmk=(x,y,v)=>marked[y*W+x]=v;
+const see=(x,y)=>seen[y*W+x]=1;
+
+// ======== WORLDGEN ========
+function gen(){
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      let v;
+      if(y<6) v=Tile.AIR;
+      else if(y<9) v=(Math.random()<0.2?Tile.ROCK:Tile.DIRT);
+      else {
+        const depth=y-9, r=Math.random();
+        v = (r < 0.15+depth*0.02) ? Tile.ROCK : Tile.DIRT;
+      }
+      set(x,y,v);
+      setmk(x,y,0);
+      seen[y*W+x]= (y<6)?1:0;
+    }
+  }
+  // carve a small cave
+  const cx=rand(W), cy=rand(H-10)+10;
+  for(let i=0;i<300;i++){
+    const rx=clamp(cx+rand(11)-5,0,W-1), ry=clamp(cy+rand(9)-4,0,H-1);
+    set(rx,ry,Tile.AIR);
+  }
+  // spawn dwarf on surface air pocket
+  dwarf.x = clamp(cx,2,W-3); dwarf.y=6; while(Solid(at(dwarf.x,dwarf.y+1))) dwarf.y--;
+  log("Embark! A lone dwarf arrives.");
+}
+gen();
+
+// ======== LOG ========
+const logEl = document.getElementById('log');
+function log(msg){ const t=`[${String(tick).padStart(5,'0')}] ${msg}`;
+  const p=document.createElement('div'); p.textContent=t; logEl.appendChild(p); logEl.scrollTop=logEl.scrollHeight; }
+
+// ======== PATHFINDING (BFS) ========
+function bfs(sx,sy,tx,ty){
+  // Target is a *neighbor* of a dig tile (or any walkable)
+  const q=[[sx,sy]], came=new Map(), key=(x,y)=>x+','+y;
+  const seen=new Set([key(sx,sy)]);
+  while(q.length){
+    const [x,y]=q.shift();
+    if(x===tx && y===ty){
+      const path=[]; let k=key(x,y);
+      while(came.has(k)){ const prev=came.get(k); const [px,py]=prev; path.push([x,y]); k=key(px,py); x=px; y=py; }
+      path.reverse(); return path;
+    }
+    for(const [dx,dy] of DIRS){
+      const nx=x+dx, ny=y+dy; if(!inb(nx,ny)) continue;
+      if(Solid(at(nx,ny))) continue;
+      const kk=key(nx,ny); if(seen.has(kk)) continue;
+      seen.add(kk); came.set(kk,[x,y]); q.push([nx,ny]);
+    }
+  }
+  return [];
+}
+
+// ======== JOB SYSTEM ========
+function nextDigTarget(){
+  // find nearest marked cell; stand on an adjacent walkable tile to dig it
+  let best=null, bestD=1e9;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    if(mk(x,y)!==1 || !Diggable(at(x,y))) continue;
+    // find any adjacent walkable
+    for(const [dx,dy] of DIRS){
+      const ax=x+dx, ay=y+dy;
+      if(!inb(ax,ay) || Solid(at(ax,ay))) continue;
+      const d=Math.abs(ax-dwarf.x)+Math.abs(ay-dwarf.y);
+      if(d<bestD){ bestD=d; best={tx:x,ty:y, px:ax,py:ay}; }
+    }
+  }
+  return best;
+}
+
+function assignJob(){
+  const tgt=nextDigTarget();
+  if(!tgt) { dwarf.job=null; return; }
+  dwarf.job={type:"dig", ...tgt};
+  dwarf.path=bfs(dwarf.x,dwarf.y,tgt.px,tgt.py);
+  if(dwarf.path.length===0) { dwarf.job=null; setmk(tgt.tx,tgt.ty,0); log("No path to target."); }
+}
+
+function work(){
+  if(!dwarf.job){ assignJob(); return; }
+  if(dwarf.path.length){
+    const [nx,ny]=dwarf.path.shift(); dwarf.x=nx; dwarf.y=ny; return;
+  }
+  // Adjacent: perform dig
+  if(dwarf.job.type==="dig"){
+    if(Diggable(at(dwarf.job.tx,dwarf.job.ty))){
+      set(dwarf.job.tx,dwarf.job.ty,Tile.AIR);
+      setmk(dwarf.job.tx,dwarf.job.ty,0);
+      log(`Urist dug (${dwarf.job.tx},${dwarf.job.ty}).`);
+      // reveal
+      see(dwarf.job.tx,dwarf.job.ty);
+      for(const [dx,dy] of DIRS){ const vx=dwarf.job.tx+dx, vy=dwarf.job.ty+dy; if(inb(vx,vy)) see(vx,vy); }
+    }
+    dwarf.job=null;
+  }
+}
+
+// ======== SIM LOOP ========
+let acc=0, last=performance.now(), frames=0, fpsLast=performance.now();
+function update(dt){
+  acc += dt * speed;
+  while(acc>100){ acc-=100; stepSim(); }
+}
+function stepSim(){
+  tick++; dwarf.hunger=clamp(dwarf.hunger+0.05,0,100); dwarf.energy=clamp(dwarf.energy-0.02,0,100);
+  if(dwarf.energy<5){ if(rand(20)===0) log("Urist rests."); return; }
+  work();
+}
+
+function loop(now){
+  const dt=now-last; last=now;
+  if(running) update(dt);
+  draw();
+  frames++; if(now-fpsLast>500){ fps=Math.round(frames*1000/(now-fpsLast)); frames=0; fpsLast=now; }
+  document.getElementById('info').textContent=`Tick ${tick} • FPS ${fps}`;
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ======== RENDER ========
+const cvs=document.getElementById('view'), ctx=cvs.getContext('2d');
+function resize(){ cvs.width=cvs.clientWidth*devicePixelRatio; cvs.height=cvs.clientHeight*devicePixelRatio; ctx.imageSmoothingEnabled=false; }
+addEventListener('resize',resize,{passive:true}); resize();
+
+function draw(){
+  const t=cam.z|0;
+  const offX = -cam.x, offY = -cam.y;
+  ctx.save(); ctx.scale(devicePixelRatio,devicePixelRatio);
+  ctx.clearRect(0,0,cvs.width, cvs.height);
+
+  const cols={air:'#0b0f14', dirt:'#352e22', rock:'#262a34', grid:'#1a2130', mark:'#6ea8fe', fog:'#070a0f'};
+  // background vignette
+  if(options.shadows){
+    const g=ctx.createRadialGradient(cvs.width/2/devicePixelRatio,cvs.height/2/devicePixelRatio,10, cvs.width/2/devicePixelRatio,cvs.height/2/devicePixelRatio, Math.max(cvs.width,cvs.height)/devicePixelRatio);
+    g.addColorStop(0,'#0b0f14'); g.addColorStop(1,'#070a0f'); ctx.fillStyle=g; ctx.fillRect(0,0,cvs.width/devicePixelRatio,cvs.height/devicePixelRatio);
+  }
+
+  // tiles
+  const startX=Math.floor((-offX)/t)-1, endX=Math.ceil((cvs.width/devicePixelRatio - offX)/t)+1;
+  const startY=Math.floor((-offY)/t)-1, endY=Math.ceil((cvs.height/devicePixelRatio - offY)/t)+1;
+  for(let y=startY;y<endY;y++){
+    for(let x=startX;x<endX;x++){
+      if(!inb(x,y)) continue;
+      const v=at(x,y); const sx=x*t+offX, sy=y*t+offY;
+      if(options.fog && !seen[y*W+x]){ ctx.fillStyle=cols.fog; ctx.fillRect(sx,sy,t,t); continue; }
+      if(v===Tile.AIR) { /* draw nothing; cave darkness already */ }
+      else if(v===Tile.DIRT){ ctx.fillStyle=cols.dirt; ctx.fillRect(sx,sy,t,t); }
+      else if(v===Tile.ROCK){ ctx.fillStyle=cols.rock; ctx.fillRect(sx,sy,t,t); }
+      else if(v===Tile.STAIRS){ ctx.fillStyle='#8aa0ff'; ctx.fillRect(sx,sy,t,t); }
+      if(options.grid){ ctx.strokeStyle=cols.grid; ctx.lineWidth=1; ctx.strokeRect(sx+0.5,sy+0.5,t-1,t-1); }
+      if(options.markers && mk(x,y)===1){
+        ctx.strokeStyle=cols.mark; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(sx+3,sy+3); ctx.lineTo(sx+t-3,sy+t-3);
+        ctx.moveTo(sx+t-3,sy+3); ctx.lineTo(sx+3,sy+t-3); ctx.stroke();
+      }
+    }
+  }
+
+  // dwarf
+  if(options.names){
+    const sx=dwarf.x*t+offX, sy=dwarf.y*t+offY;
+    ctx.fillStyle='#ffd86b'; ctx.beginPath(); ctx.arc(sx+t/2,sy+t/2,t*0.35,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#111'; ctx.fillRect(sx+t*0.35, sy+t*0.28, t*0.12, t*0.12);
+    ctx.fillStyle='#fff'; ctx.font=`${Math.max(10,t*0.4)|0}px ui-monospace`; ctx.fillText('U', sx+2, sy-2);
+  }
+
+  ctx.restore();
+}
+
+// ======== CAMERA / INPUT ========
+let mode='dig', dragging=false, lastP=null, pinchStart=null, camStart=null;
+document.getElementById('modeDig').onclick=()=>mode='dig';
+document.getElementById('modeCancel').onclick=()=>mode='cancel';
+document.getElementById('pause').onclick=()=>{running=!running};
+document.getElementById('step').onclick=()=>{stepSim(); draw();};
+document.getElementById('speed').oninput=e=>speed=+e.target.value;
+document.getElementById('zoom').oninput=e=>{ cam.z=+e.target.value; };
+for(const id of ['grid','names','follow','fog','markers','shadows']){
+  document.getElementById(id).oninput=e=>options[id]=e.target.checked;
+}
+function screenToTile(cx,cy){
+  const rect=cvs.getBoundingClientRect();
+  const x=(cx-rect.left)-cam.x, y=(cy-rect.top)-cam.y;
+  return {x:Math.floor(x/cam.z), y:Math.floor(y/cam.z)};
+}
+cvs.addEventListener('pointerdown',e=>{
+  e.preventDefault(); cvs.setPointerCapture(e.pointerId);
+  if(e.isPrimary && e.pointerType!=='touch'){ dragging=true; lastP={x:e.clientX,y:e.clientY}; return; }
+});
+cvs.addEventListener('pointermove',e=>{
+  if(dragging){ cam.x += e.clientX-lastP.x; cam.y += e.clientY-lastP.y; lastP={x:e.clientX,y:e.clientY}; }
+});
+cvs.addEventListener('pointerup',()=>{ dragging=false; lastP=null; });
+
+let touches=new Map();
+cvs.addEventListener('touchstart',e=>{
+  if(e.touches.length===1){
+    // tap to designate
+    const t=screenToTile(e.touches[0].clientX,e.touches[0].clientY);
+    if(inb(t.x,t.y)){
+      if(mode==='dig' && Diggable(at(t.x,t.y))){ setmk(t.x,t.y, mk(t.x,t.y)?0:1); if(mk(t.x,t.y)) log(`Designated dig at (${t.x},${t.y})`); }
+      else if(mode==='cancel'){ setmk(t.x,t.y,0); }
+      see(t.x,t.y); for(const [dx,dy] of DIRS){ const vx=t.x+dx, vy=t.y+dy; if(inb(vx,vy)) see(vx,vy); }
+    }
+  } else if(e.touches.length===2){
+    pinchStart = {
+      d: Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY),
+      z: cam.z
+    };
+    camStart = {x:cam.x,y:cam.y, cx:(e.touches[0].clientX+e.touches[1].clientX)/2, cy:(e.touches[0].clientY+e.touches[1].clientY)/2};
+  }
+},{passive:false});
+cvs.addEventListener('touchmove',e=>{
+  if(e.touches.length===2 && pinchStart){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+    const k=clamp((d/pinchStart.d),0.5,2); cam.z=clamp(Math.round(pinchStart.z*k),6,32);
+    const cx=(e.touches[0].clientX+e.touches[1].clientX)/2, cy=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    cam.x += (cx-camStart.cx); cam.y += (cy-camStart.cy); camStart.cx=cx; camStart.cy=cy;
+    document.getElementById('zoom').value=cam.z;
+  } else if(e.touches.length===1 && !pinchStart){
+    cam.x += e.touches[0].movementX||0; cam.y += e.touches[0].movementY||0;
+  }
+},{passive:false});
+cvs.addEventListener('touchend',()=>{ pinchStart=null; camStart=null; },{passive:true});
+
+// ======== SAVE / LOAD ========
+document.getElementById('save').onclick=()=>{
+  const data={W,H,grid:Array.from(grid),marked:Array.from(marked),seen:Array.from(seen),dwarf,cam,tick};
+  localStorage.setItem('minifortress', JSON.stringify(data));
+  log("Saved.");
+};
+document.getElementById('load').onclick=()=>{
+  const s=localStorage.getItem('minifortress'); if(!s){ log("No save found."); return; }
+  const d=JSON.parse(s);
+  if(d.W!==W||d.H!==H){ log("Save size mismatch."); return; }
+  grid.set(d.grid); marked.set(d.marked); seen.set(d.seen);
+  dwarf=d.dwarf; cam=d.cam; tick=d.tick|0; log("Loaded.");
+};
+
+// ======== CAMERA FOLLOW (optional) ========
+setInterval(()=>{ if(options.follow){
+  const t=cam.z|0, cx=dwarf.x*t, cy=dwarf.y*t, vw=cvs.width/devicePixelRatio, vh=cvs.height/devicePixelRatio;
+  cam.x = clamp(-cx + vw/2 - t/2, -W*t+vw, 0);
+  cam.y = clamp(-cy + vh/2 - t/2, -H*t+vh, 0);
+}}, 150);
+
+// reveal around dwarf each frame
+function reveal(){ for(const [dx,dy] of DIRS.concat([[0,0],[1,1],[-1,-1],[1,-1],[-1,1]])){
+  const x=dwarf.x+dx, y=dwarf.y+dy; if(inb(x,y)) see(x,y);
+}}
+setInterval(reveal,200);
+</script>
+</body>
+</html>
