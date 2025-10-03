@@ -132,7 +132,7 @@ Weather: <span id="weather"></span></div>
 
         <div class="panel dim">[ CONTROLS ]
 <kbd>H</kbd>/<kbd>K</kbd> Help · <kbd>I</kbd> Inventory
-<kbd>G</kbd> Pick up · <kbd>.</kbd> Wait
+<kbd>G</kbd> Pick up · <kbd>P</kbd> Place torch
 <kbd>R</kbd> Rest · <kbd>O</kbd> Observe · <kbd>V</kbd> Vis toggle</div>
       </aside>
     </main>
@@ -154,6 +154,28 @@ Weather: <span id="weather"></span></div>
     </div>
   </div>
 
+  <!-- Inventory Modal -->
+  <div id="inventoryOverlay" class="modal-overlay">
+    <div class="modal-content mono">
+      <div class="modal-header">
+        <h3>⟡ INVENTORY ⟡</h3>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom:20px">
+          <h4 style="color:var(--diamond);margin-bottom:10px">RESOURCES</h4>
+          <div id="inventoryResources" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:13px"></div>
+        </div>
+        <div>
+          <h4 style="color:var(--diamond);margin-bottom:10px">EQUIPMENT & TOOLS</h4>
+          <div id="inventoryItems" style="font-size:13px"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <kbd>I</kbd> or <kbd>ESC</kbd> Close Inventory
+      </div>
+    </div>
+  </div>
+
   <div id="helpOverlay">
     <h3>LOST POETS — Help &amp; Tutorial</h3>
     <ul>
@@ -164,8 +186,8 @@ Weather: <span id="weather"></span></div>
       <li>&nbsp;&nbsp;• <strong>3=♥Heart</strong> - Communicate/meditate (internal functions)</li>
       <li>&nbsp;&nbsp;• <strong>4=♦Diamond</strong> - Craft at workbench (choose recipes!)</li>
       <li><strong>Use Tool:</strong> Shift+Direction or E (facing dir)</li>
-      <li><strong>Actions:</strong> G=Pick up, R=Rest, O=Observe, .=Wait, I=Inventory</li>
-      <li><strong>Crafting System (15 recipes!):</strong></li>
+      <li><strong>Actions:</strong> G=Pick up, P=Place torch, R=Rest, O=Observe, .=Wait, I=Inventory</li>
+      <li><strong>Crafting System (16 recipes!):</strong></li>
       <li>&nbsp;&nbsp;• Select Diamond tool (press 4) then use at workbench (Shift+Dir or E)</li>
       <li>&nbsp;&nbsp;• Press 1-9 to select recipe, 0 to cancel</li>
       <li>&nbsp;&nbsp;• Press - / = to scroll between recipe pages</li>
@@ -235,7 +257,8 @@ const TILES = {
   OPEN_DOOR:{ch:'/', walk:true, cls:'door'},
   TREE:     {ch:'T', walk:false, cls:'tree'},
   PLAYER:   {ch:'@', walk:true, cls:''},
-  WOOD:     {ch:'w', walk:true, cls:'item'}
+  WOOD:     {ch:'w', walk:true, cls:'item'},
+  TORCH:    {ch:'⚍', walk:true, cls:'item'}
 };
 
 // ========== RECIPES ==========
@@ -244,6 +267,7 @@ const RECIPES = {
   key: {name:'Key', inputs:{ore:1}, outputs:{key:1}, desc:'Unlocks doors'},
   keyAlt: {name:'Key (alt)', inputs:{herb:1, scrap:1}, outputs:{key:1}, desc:'Unlocks doors'},
   axe: {name:'Iron Axe', inputs:{wood:2, ore:1}, outputs:{inventory:1}, desc:'Augments Spade (+1)', makeItem:()=>({name:'Iron Axe', type:'spade', bonus:1})},
+  torch: {name:'Torch', inputs:{wood:1, coal:1}, outputs:{torch:1}, desc:'Placeable light source (+3 radius)', placeableLight:true},
   
   // Intermediate Recipes (unlock after first craft)
   hammer: {name:'Heavy Hammer', inputs:{wood:1, ore:2}, outputs:{inventory:1}, desc:'Augments Club (+2)', makeItem:()=>({name:'Heavy Hammer', type:'club', bonus:2})},
@@ -279,6 +303,7 @@ const RESOURCE_INFO = {
   key: {name:'Key', tier:'refined', desc:'Opens locks', glyph:'k', color:'#fd6'},
   cloth: {name:'Cloth', tier:'refined', desc:'Woven fabric', glyph:'~', color:'#bbb'},
   leather: {name:'Leather', tier:'refined', desc:'Tanned hide', glyph:'l', color:'#b86'},
+  torch: {name:'Torch', tier:'refined', desc:'Light source', glyph:'⚍', color:'#fa4'},
   
   // Rare resources
   diamond: {name:'Diamond', tier:'rare', desc:'Precious gem', glyph:'◊', color:'#6df'},
@@ -298,22 +323,24 @@ const state = {
   region: {type:'forest', width:FOREST_W, height:FOREST_H, camX:0, camY:0},
   activeTool: 1, // 1=Spade, 2=Club, 3=Heart, 4=Diamond
   tutorial: {didDig:false, didStrike:false, didFocus:false, didCraftKey:false, didCraftAxe:false},
-  resources: {ore:0, herb:0, scrap:0, key:0, wood:0, coal:0, cloth:0, leather:0, diamond:0, ruby:0, gold:0, crystal:0, obsidian:0},
+  resources: {ore:0, herb:0, scrap:0, key:0, wood:0, coal:0, cloth:0, leather:0, diamond:0, ruby:0, gold:0, crystal:0, obsidian:0, torch:0},
   inventory: [], // Items that augment tool abilities: {name, type, bonus, special}
   entities: [], // {type, x, y, hp, glyph, state: 'idle'|'hunting'|'fleeing'|'resting'}
   items: [], // {type, x, y, glyph}
+  placedLights: [], // {x, y, radius, type}
   log: [],
   turns: 0,
   currentLightDelta: 0,
   helpOpen: false,
   inventoryOpen: false,
+  inventoryModalOpen: false,
   craftingMenuOpen: false,
   craftingMenuPage: 0, // For scrolling through recipes
   weather: 'clear', // clear, rain, fog
   dayNightCycle: 'day', // day, dusk, night, dawn
   lastWeatherChange: 0,
   lastDayNightChange: 0,
-  unlockedRecipes: new Set(['key', 'keyAlt', 'axe']) // Start with basic recipes
+  unlockedRecipes: new Set(['key', 'keyAlt', 'axe', 'torch']) // Start with basic recipes
 };
 
 // ========== RNG ==========
@@ -433,6 +460,17 @@ function getCurrentVisRadius(){
   radius += cycle[phase];
   
   return Math.max(3, radius); // Minimum visibility
+}
+
+function isLitByTorch(x, y){
+  // Check if position is lit by any placed torch
+  for(const light of state.placedLights){
+    const dx = x - light.x;
+    const dy = y - light.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if(dist <= light.radius) return true;
+  }
+  return false;
 }
 
 function shadeClass(dist, visRadius){
@@ -796,6 +834,28 @@ function pickup(){
   render();
 }
 
+function placeTorch(){
+  if(state.resources.torch < 1){
+    log('<span class="warnMsg">No torch to place! Craft one at a workbench.</span>');
+    return;
+  }
+  
+  const px = state.player.x;
+  const py = state.player.y;
+  
+  // Check if already a light here
+  if(state.placedLights.find(l=>l.x===px&&l.y===py)){
+    log('There is already a light source here.');
+    return;
+  }
+  
+  // Place the torch
+  state.resources.torch--;
+  state.placedLights.push({x:px, y:py, radius:5, type:'torch'});
+  log('<span class="unlockMsg">You place a torch. It illuminates the area!</span>');
+  worldTick();
+}
+
 function wait(){
   log('You wait.');
   worldTick();
@@ -1106,12 +1166,20 @@ function render(){
       const k = wy*10000 + wx;
       const seen = state.seen.has(k);
       
-      // Visibility
+      // Visibility (check both player vision and torch light)
       const dist = visibleDistance(wx,wy);
-      const isVisible = state.visibilityOn ? dist <= visRadius : true;
+      const litByTorch = isLitByTorch(wx, wy);
+      const isVisible = state.visibilityOn ? (dist <= visRadius || litByTorch) : true;
       
       if(isVisible){
         state.seen.add(k);
+        
+        // Check for placed torch
+        const placedLight = state.placedLights.find(l=>l.x===wx&&l.y===wy);
+        if(placedLight){
+          out += `<span class="v0" style="color:#fa4">⚍</span>`;
+          continue;
+        }
         
         // Entities
         const ent = state.entities.find(e=>e.x===wx&&e.y===wy);
@@ -1207,17 +1275,42 @@ function toggleHelp(){
 }
 
 function showInventory(){
-  if(state.inventory.length===0){
-    log('Inventory is empty. Craft items at workbench to augment your abilities.');
+  state.inventoryModalOpen = true;
+  
+  // Build resources display
+  let resourcesHtml = '';
+  for(const [resId, amount] of Object.entries(state.resources)){
+    const info = RESOURCE_INFO[resId];
+    if(!info) continue;
+    const color = info.color || '#888';
+    const displayAmount = amount > 0 ? amount : `<span style="color:#444">0</span>`;
+    resourcesHtml += `<div style="padding:6px;border:1px solid var(--line);background:#0a0a0a">
+      <span style="color:${color}">${info.glyph}</span> ${info.name}: ${displayAmount}
+    </div>`;
+  }
+  inventoryResources.innerHTML = resourcesHtml;
+  
+  // Build items display
+  if(state.inventory.length === 0){
+    inventoryItems.innerHTML = '<div style="color:#555;padding:10px">No equipment crafted yet.</div>';
   } else {
-    log('=== INVENTORY ===');
+    let itemsHtml = '';
     state.inventory.forEach(item=>{
       const typeSymbol = item.type==='spade'?'♠':item.type==='club'?'♣':item.type==='heart'?'♥':'♦';
-      const specialInfo = item.special ? ` [${item.special}]` : '';
-      log(`${typeSymbol} ${item.name} - Augments ${item.type} mode (+${item.bonus||0})${specialInfo}`);
+      const specialTag = item.special ? ` <span style="color:var(--diamond)">[${item.special}]</span>` : '';
+      itemsHtml += `<div style="padding:6px;margin:4px 0;border:1px solid var(--line);background:#0a0a0a">
+        ${typeSymbol} ${item.name} (+${item.bonus || 0})${specialTag}
+      </div>`;
     });
+    inventoryItems.innerHTML = itemsHtml;
   }
-  render();
+  
+  inventoryOverlay.className = 'modal-overlay show';
+}
+
+function closeInventory(){
+  state.inventoryModalOpen = false;
+  inventoryOverlay.className = 'modal-overlay';
 }
 
 // ========== INPUT ==========
@@ -1229,6 +1322,15 @@ addEventListener('keydown', (e)=>{
   }
   
   const k=e.key;
+  
+  // Inventory modal handling
+  if(state.inventoryModalOpen){
+    if(k==='i'||k==='I'||k==='Escape'){
+      closeInventory();
+      e.preventDefault();
+      return;
+    }
+  }
   
   // Crafting menu handling
   if(state.craftingMenuOpen){
@@ -1287,6 +1389,7 @@ addEventListener('keydown', (e)=>{
   // Actions
   else if(k==='e'||k==='E') useTool(state.player.facing.dx, state.player.facing.dy);
   else if(k==='g'||k==='G') pickup();
+  else if(k==='p'||k==='P') placeTorch();
   else if(k==='.') wait();
   else if(k==='r'||k==='R') rest();
   else if(k==='o'||k==='O') observe();
@@ -1324,9 +1427,59 @@ const helpOverlay = document.getElementById('helpOverlay');
 const craftingOverlay = document.getElementById('craftingOverlay');
 const craftingPageInfo = document.getElementById('craftingPageInfo');
 const craftingRecipes = document.getElementById('craftingRecipes');
+const inventoryOverlay = document.getElementById('inventoryOverlay');
+const inventoryResources = document.getElementById('inventoryResources');
+const inventoryItems = document.getElementById('inventoryItems');
 const envPanel = document.getElementById('envPanel');
 const timeOfDay = document.getElementById('timeOfDay');
 const weather = document.getElementById('weather');
+
+// ========== AUDIO SYSTEM ==========
+const audioSystem = {
+  bgMusic: null,
+  sfx: {},
+  
+  init() {
+    // Create background music element
+    this.bgMusic = new Audio('song1.mp3');
+    this.bgMusic.loop = true;
+    this.bgMusic.volume = 0.3;
+    
+    // Play music on user interaction (browsers require user gesture)
+    const playMusic = () => {
+      this.bgMusic.play().catch(err => {
+        console.log('Audio autoplay prevented:', err);
+      });
+      // Remove listener after first interaction
+      document.removeEventListener('keydown', playMusic);
+      document.removeEventListener('click', playMusic);
+    };
+    
+    // Try to play immediately (will work if autoplay is allowed)
+    this.bgMusic.play().catch(() => {
+      // If autoplay fails, wait for user interaction
+      document.addEventListener('keydown', playMusic);
+      document.addEventListener('click', playMusic);
+    });
+  },
+  
+  playSound(soundName) {
+    // Hook for playing sound effects in the future
+    // Example: audioSystem.playSound('craft')
+  },
+  
+  setMusicVolume(volume) {
+    if(this.bgMusic) this.bgMusic.volume = Math.max(0, Math.min(1, volume));
+  },
+  
+  pauseMusic() {
+    if(this.bgMusic) this.bgMusic.pause();
+  },
+  
+  resumeMusic() {
+    if(this.bgMusic) this.bgMusic.play();
+  }
+};
 
 (function init(){
   const urlSeed = new URLSearchParams(location.search).get('seed');
@@ -1337,6 +1490,9 @@ const weather = document.getElementById('weather');
   updateCamera();
   render();
   view.focus();
+  
+  // Initialize audio system
+  audioSystem.init();
 })();
 </script>
 </body>
