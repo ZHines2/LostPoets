@@ -273,6 +273,10 @@ function generateForest(w=FOREST_W, h=FOREST_H){
     const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
     if(m[y][x]===TILES.FLOOR) state.items.push({type:'ore',x,y,glyph:'*'});
   }
+  for(let i=0; i<60; i++){
+    const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
+    if(m[y][x]===TILES.FLOOR) state.items.push({type:'wood',x,y,glyph:'w'});
+  }
   for(let i=0; i<100; i++){
     const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
     if(m[y][x]===TILES.FLOOR) m[y][x]=TILES.RUBBLE;
@@ -862,7 +866,10 @@ function render(){
         // Items
         const item = state.items.find(i=>i.x===wx&&i.y===wy);
         if(item){
-          const cls = item.type==='ore'?'ore':item.type==='herb'?'herb':'item';
+          let cls = 'item';
+          if(item.type==='ore') cls = 'ore';
+          else if(item.type==='herb') cls = 'herb';
+          else if(item.type==='wood') cls = 'item';
           out += `<span class="${shadeClass(dist,visRadius)} ${cls}">${item.glyph}</span>`;
           continue;
         }
