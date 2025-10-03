@@ -60,7 +60,7 @@
 </head>
 <body>
   <div class="wrap">
-    <header class="mono">LOST POETS — Forest Exploration · <span class="help">Move <kbd>WASD</kbd> · Shift+Dir=Use Tool · <kbd>1-5</kbd> Select Tool · <kbd>H</kbd> Help · <kbd>Q</kbd> Reload</span></header>
+    <header class="mono">LOST POETS — Forest Exploration · <span class="help">Move <kbd>WASD</kbd> · Shift+Dir=Use Tool · <kbd>1-4</kbd> Select Tool · <kbd>I</kbd> Inventory · <kbd>H</kbd> Help · <kbd>Q</kbd> Reload</span></header>
 
     <main id="game">
       <section class="frame">
@@ -80,9 +80,11 @@ STR:<span id="str"></span>  INT:<span id="int"></span>  AGI:<span id="agi"></spa
   <div class="toolBtn toolClub" id="tool2">♣ 2</div>
   <div class="toolBtn toolHeart" id="tool3">♥ 3</div>
   <div class="toolBtn toolDiamond" id="tool4">♦ 4</div>
-  <div class="toolBtn" id="tool5" style="display:none">⚒ 5</div>
 </div>
 Active: <span id="activeTool"></span></div>
+
+        <div class="panel">[ INVENTORY ]
+<div id="inventoryList" style="font-size:12px;color:var(--muted);">Empty</div></div>
 
         <div class="panel">[ RESOURCES ]
 Ore: <span id="ore"></span>  Herb: <span id="herb"></span>
@@ -101,9 +103,9 @@ Weather: <span id="weather"></span></div>
 <span id="tutAxe"></span> Craft axe at bench</div>
 
         <div class="panel dim">[ CONTROLS ]
-<kbd>H</kbd>/<kbd>K</kbd> Help · <kbd>G</kbd> Pick up
-<kbd>.</kbd> Wait · <kbd>R</kbd> Rest · <kbd>O</kbd> Observe
-<kbd>V</kbd> Vis toggle · <kbd>?</kbd> Quick help</div>
+<kbd>H</kbd>/<kbd>K</kbd> Help · <kbd>I</kbd> Inventory
+<kbd>G</kbd> Pick up · <kbd>.</kbd> Wait
+<kbd>R</kbd> Rest · <kbd>O</kbd> Observe · <kbd>V</kbd> Vis toggle</div>
       </aside>
     </main>
 
@@ -114,15 +116,18 @@ Weather: <span id="weather"></span></div>
     <h3>LOST POETS — Help &amp; Tutorial</h3>
     <ul>
       <li><strong>Movement:</strong> WASD or Arrow Keys</li>
-      <li><strong>Tools:</strong> 1=♠Spade, 2=♣Club, 3=♥Heart, 4=♦Diamond, 5=⚒Axe</li>
+      <li><strong>Four Tools (modes of interaction):</strong></li>
+      <li>&nbsp;&nbsp;• <strong>1=♠Spade</strong> - Dig/harvest (hands → augmented with axe)</li>
+      <li>&nbsp;&nbsp;• <strong>2=♣Club</strong> - Combat (fists → augmented with weapons)</li>
+      <li>&nbsp;&nbsp;• <strong>3=♥Heart</strong> - Communicate/meditate (internal functions)</li>
+      <li>&nbsp;&nbsp;• <strong>4=♦Diamond</strong> - Craft at workbench</li>
       <li><strong>Use Tool:</strong> Shift+Direction or E (facing dir)</li>
-      <li><strong>Actions:</strong> G=Pick up, R=Rest, O=Observe, .=Wait</li>
-      <li><strong>Gameplay Loop:</strong></li>
-      <li>&nbsp;&nbsp;• Start in temple (enclosed by walls)</li>
-      <li>&nbsp;&nbsp;• Dig through walls to reach the forest outside</li>
-      <li>&nbsp;&nbsp;• Harvest trees with Axe to collect wood</li>
-      <li>&nbsp;&nbsp;• Craft Axe at bench: 2 Wood + 1 Ore</li>
-      <li>&nbsp;&nbsp;• Explore vast forest, gather resources, survive</li>
+      <li><strong>Actions:</strong> G=Pick up, R=Rest, O=Observe, .=Wait, I=Inventory</li>
+      <li><strong>Inventory System:</strong></li>
+      <li>&nbsp;&nbsp;• Craft items to augment your tool abilities</li>
+      <li>&nbsp;&nbsp;• Axe augments Spade mode - harvest trees, break walls</li>
+      <li>&nbsp;&nbsp;• Items in inventory automatically enhance abilities</li>
+      <li>&nbsp;&nbsp;• Press I to view collected items</li>
       <li><strong>Other:</strong> V=Toggle visibility, Q=Reload, H/K=Toggle help</li>
     </ul>
     <p style="text-align:center;color:var(--muted);margin-top:20px">Press H or K to close</p>
@@ -194,15 +199,17 @@ const state = {
   seen: new Set(),
   player: {x:2, y:1, hp:10, hpMax:10, str:5, int:5, agi:5, stamina:10, stamMax:10, facing:{dx:0,dy:1}},
   region: {type:'forest', width:FOREST_W, height:FOREST_H, camX:0, camY:0},
-  activeTool: 1, // 1=Spade, 2=Club, 3=Heart, 4=Diamond, 5=Axe
+  activeTool: 1, // 1=Spade, 2=Club, 3=Heart, 4=Diamond
   tutorial: {didDig:false, didStrike:false, didFocus:false, didCraftKey:false, didCraftAxe:false},
   resources: {ore:0, herb:0, scrap:0, key:0, wood:0},
+  inventory: [], // Items that augment tool abilities: {name, type, bonus}
   entities: [], // {type, x, y, hp, glyph, state: 'idle'|'hunting'|'fleeing'|'resting'}
   items: [], // {type, x, y, glyph}
   log: [],
   turns: 0,
   currentLightDelta: 0,
   helpOpen: false,
+  inventoryOpen: false,
   weather: 'clear', // clear, rain, fog
   dayNightCycle: 'day', // day, dusk, night, dawn
   lastWeatherChange: 0,
@@ -339,7 +346,7 @@ function shadeClass(dist, visRadius){
 function selectTool(n){ state.activeTool=n; log(`Tool: ${toolName(n)}`); render(); }
 
 function toolName(n){
-  return ['','♠ Spade','♣ Club','♥ Heart','♦ Diamond','⚒ Axe'][n];
+  return ['','♠ Spade','♣ Club','♥ Heart','♦ Diamond'][n];
 }
 
 function useTool(dx, dy){
@@ -352,16 +359,18 @@ function useTool(dx, dy){
   else if(state.activeTool===2) useClub(tx,ty);
   else if(state.activeTool===3) useHeart();
   else if(state.activeTool===4) useDiamond(tx,ty);
-  else if(state.activeTool===5) useAxe(tx,ty);
   
   worldTick();
 }
 
 function useSpade(x,y){
   const tile = state.map[y][x];
+  const axe = state.inventory.find(i=>i.type==='spade');
+  const tool = axe ? axe.name : 'hands';
+  
   if(tile===TILES.SOFT){
     state.map[y][x]=TILES.FLOOR;
-    log('<span class="unlockMsg">You dig away the soft earth.</span>');
+    log(`<span class="unlockMsg">You dig away the soft earth with ${tool}.</span>`);
     if(!state.tutorial.didDig){
       state.tutorial.didDig=true;
       log('<span class="unlockMsg">✓ Tutorial: Learned to dig!</span>');
@@ -369,17 +378,31 @@ function useSpade(x,y){
   } else if(tile===TILES.RUBBLE){
     state.map[y][x]=TILES.FLOOR;
     state.resources.scrap++;
-    log('You clear rubble, gaining scrap.');
+    log(`You clear rubble with ${tool}, gaining scrap.`);
+  } else if(tile===TILES.TREE && axe){
+    // Axe augments spade mode - can harvest trees
+    state.map[y][x]=TILES.FLOOR;
+    const woodGained = 2 + (axe.bonus || 0);
+    state.resources.wood += woodGained;
+    log(`<span class="unlockMsg">You chop down the tree with ${axe.name} and collect ${woodGained} wood!</span>`);
+  } else if(tile===TILES.WALL && axe){
+    // Axe augments spade mode - can break walls
+    state.map[y][x]=TILES.RUBBLE;
+    log(`You hack at the wall with ${axe.name}, creating rubble.`);
   } else {
-    log('Nothing to dig here.');
+    log(axe ? 'Nothing to dig or chop here.' : 'Nothing to dig here with bare hands.');
   }
 }
 
 function useClub(x,y){
   const ent = state.entities.find(e=>e.x===x&&e.y===y);
+  const weapon = state.inventory.find(i=>i.type==='club');
+  const tool = weapon ? weapon.name : 'fists';
+  const damage = state.player.str + (weapon ? weapon.bonus : 0);
+  
   if(ent){
-    ent.hp -= state.player.str;
-    log(`You strike the ${ent.type} for ${state.player.str} damage!`);
+    ent.hp -= damage;
+    log(`You strike the ${ent.type} with ${tool} for ${damage} damage!`);
     if(ent.hp<=0){
       log(`<span class="unlockMsg">The ${ent.type} is defeated!</span>`);
       state.entities = state.entities.filter(e=>e!==ent);
@@ -389,7 +412,7 @@ function useClub(x,y){
       }
     }
   } else {
-    log('Nothing to strike there.');
+    log(`Nothing to strike there with ${tool}.`);
   }
 }
 
@@ -415,14 +438,16 @@ function useDiamond(x,y){
   const tile = state.map[y][x];
   if(tile===TILES.BENCH){
     // Show available crafting recipes
-    log('Workbench crafting: [Ore→Key] [Herb+Scrap→Key] [Wood+Ore→Axe]');
+    log('Workbench crafting: [Ore→Key] [Herb+Scrap→Key] [Wood×2+Ore→Axe]');
     
     // Prioritize axe crafting if not yet crafted
     if(!state.tutorial.didCraftAxe && state.resources.wood>=2 && state.resources.ore>=1){
       state.resources.wood -= 2;
       state.resources.ore--;
       state.tutorial.didCraftAxe = true;
-      log('<span class="unlockMsg">You craft an Axe at the bench! Press 5 to equip.</span>');
+      // Add axe to inventory instead of unlocking tool 5
+      state.inventory.push({name:'Iron Axe', type:'spade', bonus:1});
+      log('<span class="unlockMsg">You craft an Iron Axe! It augments Spade mode (press 1). Check inventory (I).</span>');
     } else if(state.resources.ore>=1){
       state.resources.ore--;
       state.resources.key++;
@@ -450,20 +475,7 @@ function useDiamond(x,y){
   }
 }
 
-function useAxe(x,y){
-  const tile = state.map[y][x];
-  if(tile===TILES.TREE){
-    state.map[y][x]=TILES.FLOOR;
-    state.resources.wood += 2;
-    log('<span class="unlockMsg">You chop down the tree and collect wood!</span>');
-  } else if(tile===TILES.WALL){
-    // Can dig through walls with axe (slower than spade on soft walls)
-    state.map[y][x]=TILES.RUBBLE;
-    log('You hack at the wall, creating rubble.');
-  } else {
-    log('Nothing to chop here. Use axe on trees or walls.');
-  }
-}
+
 
 function tryUnlockDoor(x,y){
   if(state.resources.key<1){
@@ -910,15 +922,22 @@ function updateHUD(){
   
   activeTool.textContent = toolName(state.activeTool);
   
-  // Tool buttons - show axe button if crafted
-  for(let i=1;i<=5;i++){
+  // Tool buttons
+  for(let i=1;i<=4;i++){
     const el = document.getElementById('tool'+i);
     if(!el) continue;
-    if(i===5){
-      el.style.display = state.tutorial.didCraftAxe ? 'block' : 'none';
-    }
     if(state.activeTool===i) el.classList.add('toolActive');
     else el.classList.remove('toolActive');
+  }
+  
+  // Inventory display
+  if(state.inventory.length===0){
+    inventoryList.innerHTML = '<span style="color:#555">Empty</span>';
+  } else {
+    inventoryList.innerHTML = state.inventory.map(item=>{
+      const typeSymbol = item.type==='spade'?'♠':item.type==='club'?'♣':item.type==='heart'?'♥':'♦';
+      return `<div style="margin:2px 0">${typeSymbol} ${item.name} (+${item.bonus || 0})</div>`;
+    }).join('');
   }
   
   // Tutorial flags
@@ -945,6 +964,19 @@ function toggleHelp(){
   state.helpOpen = !state.helpOpen;
   helpOverlay.className = state.helpOpen ? 'show' : '';
   if(!state.helpOpen) view.focus();
+}
+
+function showInventory(){
+  if(state.inventory.length===0){
+    log('Inventory is empty. Craft items at workbench to augment your abilities.');
+  } else {
+    log('=== INVENTORY ===');
+    state.inventory.forEach(item=>{
+      const typeSymbol = item.type==='spade'?'♠':item.type==='club'?'♣':item.type==='heart'?'♥':'♦';
+      log(`${typeSymbol} ${item.name} - Augments ${item.type} mode (+${item.bonus||0})`);
+    });
+  }
+  render();
 }
 
 // ========== INPUT ==========
@@ -976,13 +1008,13 @@ addEventListener('keydown', (e)=>{
   else if(k==='2') selectTool(2);
   else if(k==='3') selectTool(3);
   else if(k==='4') selectTool(4);
-  else if(k==='5' && state.tutorial.didCraftAxe) selectTool(5);
   // Actions
   else if(k==='e'||k==='E') useTool(state.player.facing.dx, state.player.facing.dy);
   else if(k==='g'||k==='G') pickup();
   else if(k==='.') wait();
   else if(k==='r'||k==='R') rest();
   else if(k==='o'||k==='O') observe();
+  else if(k==='i'||k==='I') { showInventory(); }
   else if(k==='v'||k==='V') { state.visibilityOn=!state.visibilityOn; log('Visibility '+(state.visibilityOn?'ON':'OFF')); render(); }
   else if(k==='h'||k==='H'||k==='k'||k==='K') toggleHelp();
   else if(k==='q'||k==='Q') location.reload();
@@ -990,7 +1022,7 @@ addEventListener('keydown', (e)=>{
 });
 
 // Tool button clicks
-for(let i=1;i<=5;i++){
+for(let i=1;i<=4;i++){
   document.getElementById('tool'+i).addEventListener('click', ()=>selectTool(i));
 }
 
@@ -1009,6 +1041,7 @@ const scrap = document.getElementById('scrap');
 const key = document.getElementById('key');
 const wood = document.getElementById('wood');
 const activeTool = document.getElementById('activeTool');
+const inventoryList = document.getElementById('inventoryList');
 const tutDig = document.getElementById('tutDig');
 const tutStrike = document.getElementById('tutStrike');
 const tutFocus = document.getElementById('tutFocus');
