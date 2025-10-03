@@ -513,7 +513,15 @@ function useSpade(x,y){
   const bonus = bestTool ? bestTool.bonus : 0;
   const hasMining = tools.some(t=>t.special==='mining');
   
+  // Check stamina for actions that require it
+  const staminaCost = (tile===TILES.SOFT || tile===TILES.WALL) ? 2 : 1;
+  
   if(tile===TILES.SOFT){
+    if(state.player.stamina < staminaCost){
+      log('<span class="warnMsg">Not enough stamina to dig!</span>');
+      return;
+    }
+    state.player.stamina -= staminaCost;
     state.map[y][x]=TILES.FLOOR;
     log(`<span class="unlockMsg">You dig away the soft earth with ${tool}.</span>`);
     if(!state.tutorial.didDig){
@@ -521,26 +529,51 @@ function useSpade(x,y){
       log('<span class="unlockMsg">✓ Tutorial: Learned to dig!</span>');
     }
   } else if(tile===TILES.RUBBLE){
+    if(state.player.stamina < staminaCost){
+      log('<span class="warnMsg">Not enough stamina to clear rubble!</span>');
+      return;
+    }
+    state.player.stamina -= staminaCost;
     state.map[y][x]=TILES.FLOOR;
     state.resources.scrap++;
     log(`You clear rubble with ${tool}, gaining scrap.`);
   } else if(tile===TILES.TREE && bestTool){
+    if(state.player.stamina < staminaCost){
+      log('<span class="warnMsg">Not enough stamina to chop!</span>');
+      return;
+    }
+    state.player.stamina -= staminaCost;
     // Axe augments spade mode - can harvest trees
     state.map[y][x]=TILES.FLOOR;
     const woodGained = 2 + bonus;
     state.resources.wood += woodGained;
     log(`<span class="unlockMsg">You chop down the tree with ${tool} and collect ${woodGained} wood!</span>`);
   } else if(tile===TILES.WALL && bestTool){
+    if(state.player.stamina < staminaCost){
+      log('<span class="warnMsg">Not enough stamina to break the wall!</span>');
+      return;
+    }
+    state.player.stamina -= staminaCost;
     // Mining tool can extract ore from walls
     if(hasMining){
       state.map[y][x]=TILES.RUBBLE;
       const oreGained = 1 + Math.floor(bonus/2);
       state.resources.ore += oreGained;
       log(`<span class="unlockMsg">You mine the wall with ${tool}, extracting ${oreGained} ore!</span>`);
+      // 20% chance to get coal when breaking wall
+      if(rf() < 0.20){
+        state.resources.coal++;
+        log('<span class="unlockMsg">You found coal in the wall!</span>');
+      }
     } else {
       // Regular tools just break walls
       state.map[y][x]=TILES.RUBBLE;
       log(`You hack at the wall with ${tool}, creating rubble.`);
+      // 20% chance to get coal when breaking wall
+      if(rf() < 0.20){
+        state.resources.coal++;
+        log('<span class="unlockMsg">You found coal in the wall!</span>');
+      }
     }
   } else {
     log(bestTool ? 'Nothing to dig or chop here.' : 'Nothing to dig here with bare hands.');
