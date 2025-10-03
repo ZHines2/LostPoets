@@ -60,7 +60,7 @@
 </head>
 <body>
   <div class="wrap">
-    <header class="mono">LOST POETS — Origin Temple Tutorial · <span class="help">Move <kbd>WASD</kbd> · Shift+Dir=Use Tool · <kbd>1-4</kbd> Select Tool · <kbd>H</kbd> Help · <kbd>Q</kbd> Reload</span></header>
+    <header class="mono">LOST POETS — Forest Exploration · <span class="help">Move <kbd>WASD</kbd> · Shift+Dir=Use Tool · <kbd>1-5</kbd> Select Tool · <kbd>H</kbd> Help · <kbd>Q</kbd> Reload</span></header>
 
     <main id="game">
       <section class="frame">
@@ -80,12 +80,14 @@ STR:<span id="str"></span>  INT:<span id="int"></span>  AGI:<span id="agi"></spa
   <div class="toolBtn toolClub" id="tool2">♣ 2</div>
   <div class="toolBtn toolHeart" id="tool3">♥ 3</div>
   <div class="toolBtn toolDiamond" id="tool4">♦ 4</div>
+  <div class="toolBtn" id="tool5" style="display:none">⚒ 5</div>
 </div>
 Active: <span id="activeTool"></span></div>
 
         <div class="panel">[ RESOURCES ]
 Ore: <span id="ore"></span>  Herb: <span id="herb"></span>
-Scrap: <span id="scrap"></span>  Key: <span id="key"></span></div>
+Scrap: <span id="scrap"></span>  Key: <span id="key"></span>
+Wood: <span id="wood"></span></div>
 
         <div class="panel" id="envPanel" style="display:none">[ ENVIRONMENT ]
 Time: <span id="timeOfDay"></span>
@@ -95,7 +97,8 @@ Weather: <span id="weather"></span></div>
 <span id="tutDig"></span> Dig soft wall
 <span id="tutStrike"></span> Strike creature
 <span id="tutFocus"></span> Use Heart
-<span id="tutCraft"></span> Craft key at bench</div>
+<span id="tutCraft"></span> Craft key at bench
+<span id="tutAxe"></span> Craft axe at bench</div>
 
         <div class="panel dim">[ CONTROLS ]
 <kbd>H</kbd>/<kbd>K</kbd> Help · <kbd>G</kbd> Pick up
@@ -111,15 +114,15 @@ Weather: <span id="weather"></span></div>
     <h3>LOST POETS — Help &amp; Tutorial</h3>
     <ul>
       <li><strong>Movement:</strong> WASD or Arrow Keys</li>
-      <li><strong>Tools:</strong> 1=♠Spade, 2=♣Club, 3=♥Heart, 4=♦Diamond</li>
+      <li><strong>Tools:</strong> 1=♠Spade, 2=♣Club, 3=♥Heart, 4=♦Diamond, 5=⚒Axe</li>
       <li><strong>Use Tool:</strong> Shift+Direction or E (facing dir)</li>
       <li><strong>Actions:</strong> G=Pick up, R=Rest, O=Observe, .=Wait</li>
-      <li><strong>Tutorial Goals:</strong></li>
-      <li>&nbsp;&nbsp;• Dig soft walls (~) with Spade to clear corridor</li>
-      <li>&nbsp;&nbsp;• Strike rat (r) with Club to learn combat</li>
-      <li>&nbsp;&nbsp;• Use Heart in quiet room to learn focus/breathe</li>
-      <li>&nbsp;&nbsp;• Refine ore or combine materials at bench (=) with Diamond</li>
-      <li>&nbsp;&nbsp;• Collect key and unlock exit door (+) to reach forest</li>
+      <li><strong>Gameplay Loop:</strong></li>
+      <li>&nbsp;&nbsp;• Start in temple (enclosed by walls)</li>
+      <li>&nbsp;&nbsp;• Dig through walls to reach the forest outside</li>
+      <li>&nbsp;&nbsp;• Harvest trees with Axe to collect wood</li>
+      <li>&nbsp;&nbsp;• Craft Axe at bench: 2 Wood + 1 Ore</li>
+      <li>&nbsp;&nbsp;• Explore vast forest, gather resources, survive</li>
       <li><strong>Other:</strong> V=Toggle visibility, Q=Reload, H/K=Toggle help</li>
     </ul>
     <p style="text-align:center;color:var(--muted);margin-top:20px">Press H or K to close</p>
@@ -131,10 +134,10 @@ Weather: <span id="weather"></span></div>
 // =============================
 
 // ========== CONSTANTS ==========
-const VIEWPORT_W = 25, VIEWPORT_H = 25;
+const VIEWPORT_W = 40, VIEWPORT_H = 40;
 const BASE_VIS_RADIUS = 8;
 const TEMPLE_W = 25, TEMPLE_H = 25;
-const FOREST_W = 80, FOREST_H = 80;
+const FOREST_W = 120, FOREST_H = 120;
 
 // ========== TEMPLE LAYOUT ==========
 const TEMPLE_LAYOUT = [
@@ -179,7 +182,8 @@ const TILES = {
   DOOR:     {ch:'+', walk:false, cls:'door'},
   OPEN_DOOR:{ch:'/', walk:true, cls:'door'},
   TREE:     {ch:'T', walk:false, cls:'tree'},
-  PLAYER:   {ch:'@', walk:true, cls:''}
+  PLAYER:   {ch:'@', walk:true, cls:''},
+  WOOD:     {ch:'w', walk:true, cls:'item'}
 };
 
 // ========== STATE ==========
@@ -189,10 +193,10 @@ const state = {
   visibilityOn: true,
   seen: new Set(),
   player: {x:2, y:1, hp:10, hpMax:10, str:5, int:5, agi:5, stamina:10, stamMax:10, facing:{dx:0,dy:1}},
-  region: {type:'temple', width:TEMPLE_W, height:TEMPLE_H, camX:0, camY:0},
-  activeTool: 1, // 1=Spade, 2=Club, 3=Heart, 4=Diamond
-  tutorial: {didDig:false, didStrike:false, didFocus:false, didCraftKey:false},
-  resources: {ore:0, herb:0, scrap:0, key:0},
+  region: {type:'forest', width:FOREST_W, height:FOREST_H, camX:0, camY:0},
+  activeTool: 1, // 1=Spade, 2=Club, 3=Heart, 4=Diamond, 5=Axe
+  tutorial: {didDig:false, didStrike:false, didFocus:false, didCraftKey:false, didCraftAxe:false},
+  resources: {ore:0, herb:0, scrap:0, key:0, wood:0},
   entities: [], // {type, x, y, hp, glyph, state: 'idle'|'hunting'|'fleeing'|'resting'}
   items: [], // {type, x, y, glyph}
   log: [],
@@ -212,24 +216,38 @@ function rand(){ return _seed = _seed*16807 % 2147483647; }
 function rf(){ return (rand()-1)/2147483646; }
 
 // ========== REGION SETUP ==========
-function loadTemple(){
-  const m = Array.from({length:TEMPLE_H}, (_, y)=>
-    Array.from({length:TEMPLE_W}, (_, x)=>{
-      const ch = TEMPLE_LAYOUT[y][x];
-      if(ch==='#') return TILES.WALL;
-      if(ch==='~') return TILES.SOFT;
-      if(ch===',') return TILES.RUBBLE;
-      if(ch==='*') { state.items.push({type:'ore',x,y,glyph:'*'}); return TILES.FLOOR; }
-      if(ch===';') { state.items.push({type:'herb',x,y,glyph:';'}); return TILES.FLOOR; }
-      if(ch==='=') return TILES.BENCH;
-      if(ch==='+') return TILES.DOOR;
-      if(ch==='/') return TILES.OPEN_DOOR;
-      if(ch==='r') { state.entities.push({type:'rat',x,y,hp:3,glyph:'r'}); return TILES.FLOOR; }
-      return TILES.FLOOR;
-    })
-  );
-  state.player.x=2; state.player.y=1;
-  state.region = {type:'temple', width:TEMPLE_W, height:TEMPLE_H, camX:0, camY:0};
+function loadForestWithTemple(){
+  // Generate forest first
+  const m = generateForest(FOREST_W, FOREST_H);
+  
+  // Embed temple in center of forest
+  const templeOffsetX = Math.floor((FOREST_W - TEMPLE_W) / 2);
+  const templeOffsetY = Math.floor((FOREST_H - TEMPLE_H) / 2);
+  
+  // Place temple structure
+  for(let ty=0; ty<TEMPLE_H; ty++){
+    for(let tx=0; tx<TEMPLE_W; tx++){
+      const ch = TEMPLE_LAYOUT[ty][tx];
+      const fx = templeOffsetX + tx;
+      const fy = templeOffsetY + ty;
+      
+      if(ch==='#') m[fy][fx] = TILES.WALL;
+      else if(ch==='~') m[fy][fx] = TILES.SOFT;
+      else if(ch===',') m[fy][fx] = TILES.RUBBLE;
+      else if(ch==='*') { state.items.push({type:'ore',x:fx,y:fy,glyph:'*'}); m[fy][fx] = TILES.FLOOR; }
+      else if(ch===';') { state.items.push({type:'herb',x:fx,y:fy,glyph:';'}); m[fy][fx] = TILES.FLOOR; }
+      else if(ch==='=') m[fy][fx] = TILES.BENCH;
+      else if(ch==='+') m[fy][fx] = TILES.DOOR;
+      else if(ch==='/') m[fy][fx] = TILES.OPEN_DOOR;
+      else if(ch==='r') { state.entities.push({type:'rat',x:fx,y:fy,hp:3,glyph:'r'}); m[fy][fx] = TILES.FLOOR; }
+      else m[fy][fx] = TILES.FLOOR;
+    }
+  }
+  
+  // Set player position inside temple
+  state.player.x = templeOffsetX + 2;
+  state.player.y = templeOffsetY + 1;
+  state.region = {type:'forest', width:FOREST_W, height:FOREST_H, camX:0, camY:0};
   return m;
 }
 
@@ -240,55 +258,40 @@ function generateForest(w=FOREST_W, h=FOREST_H){
   for(let x=0;x<w;x++){ m[0][x]=TILES.WALL; m[h-1][x]=TILES.WALL; }
   for(let y=0;y<h;y++){ m[y][0]=TILES.WALL; m[y][w-1]=TILES.WALL; }
   
-  // Trees scattered
-  for(let i=0; i<w*h*0.15; i++){
+  // Trees scattered (more trees for larger forest)
+  for(let i=0; i<w*h*0.18; i++){
     const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
     m[y][x]=TILES.TREE;
   }
   
-  // Resources
-  for(let i=0; i<80; i++){
+  // Resources (scaled for larger map)
+  for(let i=0; i<150; i++){
     const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
     if(m[y][x]===TILES.FLOOR) state.items.push({type:'herb',x,y,glyph:';'});
   }
-  for(let i=0; i<40; i++){
+  for(let i=0; i<80; i++){
     const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
     if(m[y][x]===TILES.FLOOR) state.items.push({type:'ore',x,y,glyph:'*'});
   }
-  for(let i=0; i<60; i++){
+  for(let i=0; i<100; i++){
     const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
     if(m[y][x]===TILES.FLOOR) m[y][x]=TILES.RUBBLE;
   }
-  for(let i=0; i<30; i++){
+  for(let i=0; i<50; i++){
     const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
     if(m[y][x]===TILES.FLOOR) m[y][x]=TILES.SOFT;
   }
   
-  // Entry portal
-  m[Math.floor(h/2)][Math.floor(w/2)]=TILES.OPEN_DOOR;
-  
-  // Spawn some creatures
-  for(let i=0; i<5; i++){
+  // Spawn some creatures (more for larger map)
+  for(let i=0; i<8; i++){
     const x=10+Math.floor(rf()*(w-20)), y=10+Math.floor(rf()*(h-20));
-    if(m[y][x]===TILES.FLOOR) state.entities.push({type:'scav',x,y,hp:5,glyph:'r'});
+    if(m[y][x]===TILES.FLOOR) state.entities.push({type:'scav',x,y,hp:5,glyph:'r',state:'idle'});
   }
   
   return m;
 }
 
-function transitionToForest(){
-  log('<span class="unlockMsg">The door opens! A vast forest awaits beyond...</span>');
-  state.map = generateForest();
-  state.region = {type:'forest', width:FOREST_W, height:FOREST_H, camX:0, camY:0};
-  state.player.x = Math.floor(FOREST_W/2);
-  state.player.y = Math.floor(FOREST_H/2);
-  state.seen.clear();
-  updateCamera();
-  render();
-}
-
 function updateCamera(){
-  if(state.region.type==='temple') return; // No camera in temple
   const {width, height} = state.region;
   const halfW = Math.floor(VIEWPORT_W/2), halfH = Math.floor(VIEWPORT_H/2);
   state.region.camX = Math.max(0, Math.min(width-VIEWPORT_W, state.player.x - halfW));
@@ -332,7 +335,7 @@ function shadeClass(dist, visRadius){
 function selectTool(n){ state.activeTool=n; log(`Tool: ${toolName(n)}`); render(); }
 
 function toolName(n){
-  return ['','♠ Spade','♣ Club','♥ Heart','♦ Diamond'][n];
+  return ['','♠ Spade','♣ Club','♥ Heart','♦ Diamond','⚒ Axe'][n];
 }
 
 function useTool(dx, dy){
@@ -345,6 +348,7 @@ function useTool(dx, dy){
   else if(state.activeTool===2) useClub(tx,ty);
   else if(state.activeTool===3) useHeart();
   else if(state.activeTool===4) useDiamond(tx,ty);
+  else if(state.activeTool===5) useAxe(tx,ty);
   
   worldTick();
 }
@@ -406,7 +410,16 @@ function useHeart(){
 function useDiamond(x,y){
   const tile = state.map[y][x];
   if(tile===TILES.BENCH){
-    if(state.resources.ore>=1){
+    // Show available crafting recipes
+    log('Workbench crafting: [Ore→Key] [Herb+Scrap→Key] [Wood+Ore→Axe]');
+    
+    // Prioritize axe crafting if not yet crafted
+    if(!state.tutorial.didCraftAxe && state.resources.wood>=2 && state.resources.ore>=1){
+      state.resources.wood -= 2;
+      state.resources.ore--;
+      state.tutorial.didCraftAxe = true;
+      log('<span class="unlockMsg">You craft an Axe at the bench! Press 5 to equip.</span>');
+    } else if(state.resources.ore>=1){
       state.resources.ore--;
       state.resources.key++;
       log('<span class="unlockMsg">You refine ore into a key at the bench!</span>');
@@ -424,7 +437,7 @@ function useDiamond(x,y){
         log('<span class="unlockMsg">✓ Tutorial: Learned to craft!</span>');
       }
     } else {
-      log('Need ore OR (herb+scrap) to craft key at bench.');
+      log('Need resources: [Ore→Key] [Herb+Scrap→Key] [Wood×2+Ore→Axe]');
     }
   } else if(tile===TILES.DOOR){
     tryUnlockDoor(x,y);
@@ -433,18 +446,22 @@ function useDiamond(x,y){
   }
 }
 
-function tryUnlockDoor(x,y){
-  const missing = [];
-  if(!state.tutorial.didDig) missing.push('dig');
-  if(!state.tutorial.didStrike) missing.push('strike');
-  if(!state.tutorial.didFocus) missing.push('focus');
-  if(!state.tutorial.didCraftKey) missing.push('craft key');
-  
-  if(missing.length>0){
-    log(`<span class="warnMsg">Door locked! Missing: ${missing.join(', ')}</span>`);
-    return;
+function useAxe(x,y){
+  const tile = state.map[y][x];
+  if(tile===TILES.TREE){
+    state.map[y][x]=TILES.FLOOR;
+    state.resources.wood += 2;
+    log('<span class="unlockMsg">You chop down the tree and collect wood!</span>');
+  } else if(tile===TILES.WALL){
+    // Can dig through walls with axe (slower than spade on soft walls)
+    state.map[y][x]=TILES.RUBBLE;
+    log('You hack at the wall, creating rubble.');
+  } else {
+    log('Nothing to chop here. Use axe on trees or walls.');
   }
-  
+}
+
+function tryUnlockDoor(x,y){
   if(state.resources.key<1){
     log('<span class="warnMsg">Need a key to unlock this door!</span>');
     return;
@@ -452,7 +469,7 @@ function tryUnlockDoor(x,y){
   
   state.resources.key--;
   state.map[y][x] = TILES.OPEN_DOOR;
-  log('<span class="unlockMsg">You unlock the exit door with your key!</span>');
+  log('<span class="unlockMsg">You unlock the door with your key!</span>');
 }
 
 // ========== ACTIONS ==========
@@ -481,12 +498,6 @@ function tryMove(dx,dy){
   state.player.x=nx; state.player.y=ny;
   inc('agi',0.01);
   
-  // Check for transition
-  if(tile===TILES.OPEN_DOOR && state.region.type==='temple'){
-    transitionToForest();
-    return;
-  }
-  
   updateCamera();
   worldTick();
 }
@@ -511,7 +522,11 @@ function observe(){
 function pickup(){
   const item = state.items.find(i=>i.x===state.player.x&&i.y===state.player.y);
   if(item){
-    state.resources[item.type]++;
+    if(item.type in state.resources){
+      state.resources[item.type]++;
+    } else {
+      state.resources[item.type] = 1;
+    }
     state.items = state.items.filter(i=>i!==item);
     log(`Picked up ${item.type}.`);
   } else {
@@ -532,25 +547,14 @@ function inBounds(x,y){ return x>=0&&y>=0&&x<state.region.width&&y<state.region.
 function worldTick(){
   state.turns++;
   
-  // Stamina drain in quiet room (temple only)
-  if(state.region.type==='temple'){
-    const {x,y} = state.player;
-    if(x>=QUIET_ROOM.x1 && x<=QUIET_ROOM.x2 && y>=QUIET_ROOM.y1 && y<=QUIET_ROOM.y2){
-      state.player.stamina = Math.max(0, state.player.stamina-1);
-      if(state.player.stamina===0) log('<span class="warnMsg">The oppressive silence drains your stamina!</span>');
-    }
-  }
-  
-  // Forest simulation
-  if(state.region.type==='forest'){
-    if(state.turns%2===0) simulateCreatures();
-    if(state.turns%10===0) simulateFlora();
-    if(state.turns%15===0) simulateGeology();
-    if(state.turns%30===0) trySpawnCreature();
-    if(state.turns%100===0) updateDayNightCycle();
-    if(state.turns%150===0) updateWeather();
-    if(state.turns%50===0) triggerRandomEvent();
-  }
+  // Forest simulation (always active now)
+  if(state.turns%2===0) simulateCreatures();
+  if(state.turns%10===0) simulateFlora();
+  if(state.turns%15===0) simulateGeology();
+  if(state.turns%30===0) trySpawnCreature();
+  if(state.turns%100===0) updateDayNightCycle();
+  if(state.turns%150===0) updateWeather();
+  if(state.turns%50===0) triggerRandomEvent();
   
   render();
 }
@@ -895,12 +899,17 @@ function updateHUD(){
   herb.textContent = state.resources.herb;
   scrap.textContent = state.resources.scrap;
   key.textContent = state.resources.key;
+  wood.textContent = state.resources.wood;
   
   activeTool.textContent = toolName(state.activeTool);
   
-  // Tool buttons
-  for(let i=1;i<=4;i++){
+  // Tool buttons - show axe button if crafted
+  for(let i=1;i<=5;i++){
     const el = document.getElementById('tool'+i);
+    if(!el) continue;
+    if(i===5){
+      el.style.display = state.tutorial.didCraftAxe ? 'block' : 'none';
+    }
     if(state.activeTool===i) el.classList.add('toolActive');
     else el.classList.remove('toolActive');
   }
@@ -910,17 +919,13 @@ function updateHUD(){
   tutStrike.innerHTML = state.tutorial.didStrike ? '<span class="flagComplete">✓</span>' : '<span class="flagMissing">✗</span>';
   tutFocus.innerHTML = state.tutorial.didFocus ? '<span class="flagComplete">✓</span>' : '<span class="flagMissing">✗</span>';
   tutCraft.innerHTML = state.tutorial.didCraftKey ? '<span class="flagComplete">✓</span>' : '<span class="flagMissing">✗</span>';
+  tutAxe.innerHTML = state.tutorial.didCraftAxe ? '<span class="flagComplete">✓</span>' : '<span class="flagMissing">✗</span>';
   
   // Map title
-  if(state.region.type==='temple'){
-    mapTitle.textContent = '[ ORIGIN TEMPLE 25×25 ]';
-    envPanel.style.display = 'none';
-  } else {
-    mapTitle.textContent = `[ FOREST OVERWORLD ${FOREST_W}×${FOREST_H} ]`;
-    envPanel.style.display = 'block';
-    timeOfDay.textContent = state.dayNightCycle.toUpperCase();
-    weather.textContent = state.weather.toUpperCase();
-  }
+  mapTitle.textContent = `[ FOREST OVERWORLD ${FOREST_W}×${FOREST_H} ]`;
+  envPanel.style.display = 'block';
+  timeOfDay.textContent = state.dayNightCycle.toUpperCase();
+  weather.textContent = state.weather.toUpperCase();
   
   logEl.innerHTML = state.log.slice(-12).join('\n');
   logEl.scrollTop = logEl.scrollHeight; // Auto-scroll to bottom
@@ -964,6 +969,7 @@ addEventListener('keydown', (e)=>{
   else if(k==='2') selectTool(2);
   else if(k==='3') selectTool(3);
   else if(k==='4') selectTool(4);
+  else if(k==='5' && state.tutorial.didCraftAxe) selectTool(5);
   // Actions
   else if(k==='e'||k==='E') useTool(state.player.facing.dx, state.player.facing.dy);
   else if(k==='g'||k==='G') pickup();
@@ -977,7 +983,7 @@ addEventListener('keydown', (e)=>{
 });
 
 // Tool button clicks
-for(let i=1;i<=4;i++){
+for(let i=1;i<=5;i++){
   document.getElementById('tool'+i).addEventListener('click', ()=>selectTool(i));
 }
 
@@ -994,11 +1000,13 @@ const ore = document.getElementById('ore');
 const herb = document.getElementById('herb');
 const scrap = document.getElementById('scrap');
 const key = document.getElementById('key');
+const wood = document.getElementById('wood');
 const activeTool = document.getElementById('activeTool');
 const tutDig = document.getElementById('tutDig');
 const tutStrike = document.getElementById('tutStrike');
 const tutFocus = document.getElementById('tutFocus');
 const tutCraft = document.getElementById('tutCraft');
+const tutAxe = document.getElementById('tutAxe');
 const mapTitle = document.getElementById('mapTitle');
 const logEl = document.getElementById('log');
 const helpOverlay = document.getElementById('helpOverlay');
@@ -1009,9 +1017,10 @@ const weather = document.getElementById('weather');
 (function init(){
   const urlSeed = new URLSearchParams(location.search).get('seed');
   srand(urlSeed ? parseInt(urlSeed,10) : state.seed);
-  state.map = loadTemple();
-  log('Welcome to the Origin Temple. Learn the four tools to escape.');
+  state.map = loadForestWithTemple();
+  log('Welcome to the Origin Temple. The forest surrounds you. Dig through the walls to escape!');
   state.seen.add(state.player.y*10000+state.player.x);
+  updateCamera();
   render();
   view.focus();
 })();
