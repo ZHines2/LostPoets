@@ -87,9 +87,12 @@ Active: <span id="activeTool"></span></div>
 <div id="inventoryList" style="font-size:12px;color:var(--muted);">Empty</div></div>
 
         <div class="panel">[ RESOURCES ]
-Ore: <span id="ore"></span>  Herb: <span id="herb"></span>
-Scrap: <span id="scrap"></span>  Key: <span id="key"></span>
-Wood: <span id="wood"></span></div>
+Ore: <span id="ore"></span>  Herb: <span id="herb"></span>  Wood: <span id="wood"></span>
+Coal: <span id="coal"></span>  Scrap: <span id="scrap"></span>  Key: <span id="key"></span>
+<div style="font-size:11px;margin-top:2px;color:var(--muted)">
+Diamond: <span id="diamond"></span>  Ruby: <span id="ruby"></span>  Gold: <span id="gold"></span>
+Cloth: <span id="cloth"></span>  Leather: <span id="leather"></span>  Crystal: <span id="crystal"></span>  Obsidian: <span id="obsidian"></span>
+</div></div>
 
         <div class="panel" id="envPanel" style="display:none">[ ENVIRONMENT ]
 Time: <span id="timeOfDay"></span>
@@ -123,11 +126,12 @@ Weather: <span id="weather"></span></div>
       <li>&nbsp;&nbsp;• <strong>4=♦Diamond</strong> - Craft at workbench (choose recipes!)</li>
       <li><strong>Use Tool:</strong> Shift+Direction or E (facing dir)</li>
       <li><strong>Actions:</strong> G=Pick up, R=Rest, O=Observe, .=Wait, I=Inventory</li>
-      <li><strong>Crafting System:</strong></li>
-      <li>&nbsp;&nbsp;• Use Diamond tool at workbench to open menu</li>
-      <li>&nbsp;&nbsp;• Press number keys (1-9) to select recipe to craft</li>
+      <li><strong>Crafting System (15 recipes!):</strong></li>
+      <li>&nbsp;&nbsp;• Select Diamond tool (press 4) then use at workbench (Shift+Dir or E)</li>
+      <li>&nbsp;&nbsp;• Press 1-9 to select recipe, 0 to cancel</li>
+      <li>&nbsp;&nbsp;• Press - / = to scroll between recipe pages</li>
       <li>&nbsp;&nbsp;• Craft Portable Workbench to craft anywhere!</li>
-      <li>&nbsp;&nbsp;• New recipes unlock as you progress</li>
+      <li>&nbsp;&nbsp;• New recipes unlock as you craft more items</li>
       <li><strong>Inventory System:</strong></li>
       <li>&nbsp;&nbsp;• Tools augment abilities (Axe=chop trees, Pickaxe=mine ore)</li>
       <li>&nbsp;&nbsp;• Press I to view collected items</li>
@@ -197,21 +201,52 @@ const TILES = {
 
 // ========== RECIPES ==========
 const RECIPES = {
+  // Basic Recipes (unlocked at start)
   key: {name:'Key', inputs:{ore:1}, outputs:{key:1}, desc:'Unlocks doors'},
   keyAlt: {name:'Key (alt)', inputs:{herb:1, scrap:1}, outputs:{key:1}, desc:'Unlocks doors'},
   axe: {name:'Iron Axe', inputs:{wood:2, ore:1}, outputs:{inventory:1}, desc:'Augments Spade (+1)', makeItem:()=>({name:'Iron Axe', type:'spade', bonus:1})},
+  
+  // Intermediate Recipes (unlock after first craft)
   hammer: {name:'Heavy Hammer', inputs:{wood:1, ore:2}, outputs:{inventory:1}, desc:'Augments Club (+2)', makeItem:()=>({name:'Heavy Hammer', type:'club', bonus:2})},
   workbench: {name:'Portable Workbench', inputs:{wood:4, scrap:2}, outputs:{inventory:1}, desc:'Craft anywhere', makeItem:()=>({name:'Portable Workbench', type:'diamond', bonus:0, special:'workbench'})},
+  bandage: {name:'Healing Bandage', inputs:{herb:2, cloth:1}, outputs:{inventory:1}, desc:'Restores 3 HP', makeItem:()=>({name:'Healing Bandage', type:'heart', bonus:3, special:'healing'})},
+  
+  // Advanced Recipes (unlock with workbench)
   pickaxe: {name:'Pickaxe', inputs:{wood:1, ore:3}, outputs:{inventory:1}, desc:'Mine walls for ore', makeItem:()=>({name:'Pickaxe', type:'spade', bonus:2, special:'mining'})},
+  steelSword: {name:'Steel Sword', inputs:{ore:3, coal:2}, outputs:{inventory:1}, desc:'Augments Club (+3)', makeItem:()=>({name:'Steel Sword', type:'club', bonus:3})},
+  shield: {name:'Wooden Shield', inputs:{wood:3, leather:1}, outputs:{inventory:1}, desc:'Reduces damage taken', makeItem:()=>({name:'Wooden Shield', type:'heart', bonus:0, special:'defense'})},
+  
+  // Expert Recipes (unlock with rare materials)
+  diamondPick: {name:'Diamond Pickaxe', inputs:{ore:5, diamond:2, wood:2}, outputs:{inventory:1}, desc:'Elite mining (+4)', makeItem:()=>({name:'Diamond Pickaxe', type:'spade', bonus:4, special:'mining'})},
+  flameSword: {name:'Flame Sword', inputs:{ore:4, coal:3, ruby:1}, outputs:{inventory:1}, desc:'Fire damage (+5)', makeItem:()=>({name:'Flame Sword', type:'club', bonus:5, special:'fire'})},
+  amulet: {name:'Life Amulet', inputs:{gold:2, ruby:1, herb:3}, outputs:{inventory:1}, desc:'+5 max HP', makeItem:()=>({name:'Life Amulet', type:'heart', bonus:5, special:'maxhp'})},
+  
+  // Master Recipes (end-game crafts)
+  obsidianArmor: {name:'Obsidian Armor', inputs:{obsidian:3, coal:4, leather:2}, outputs:{inventory:1}, desc:'Elite defense', makeItem:()=>({name:'Obsidian Armor', type:'heart', bonus:0, special:'armor'})},
+  elderWand: {name:'Elder Wand', inputs:{wood:5, crystal:2, gold:3}, outputs:{inventory:1}, desc:'Magic focus (+6)', makeItem:()=>({name:'Elder Wand', type:'diamond', bonus:6, special:'magic'})},
+  legendBlade: {name:'Legendary Blade', inputs:{diamond:3, ruby:2, obsidian:2, gold:5}, outputs:{inventory:1}, desc:'Ultimate weapon', makeItem:()=>({name:'Legendary Blade', type:'club', bonus:10, special:'legendary'})},
 };
 
 // ========== RESOURCE METADATA ==========
 const RESOURCE_INFO = {
+  // Basic resources
   ore: {name:'Ore', tier:'basic', desc:'Raw mineral', glyph:'*', color:'#da6'},
   herb: {name:'Herb', tier:'basic', desc:'Healing plant', glyph:';', color:'#7b7'},
   wood: {name:'Wood', tier:'basic', desc:'Building material', glyph:'w', color:'#fc6'},
+  coal: {name:'Coal', tier:'basic', desc:'Fuel source', glyph:'c', color:'#444'},
+  
+  // Refined resources
   scrap: {name:'Scrap', tier:'refined', desc:'Salvaged metal', glyph:',', color:'#888'},
-  key: {name:'Key', tier:'refined', desc:'Opens locks', glyph:'k', color:'#fd6'}
+  key: {name:'Key', tier:'refined', desc:'Opens locks', glyph:'k', color:'#fd6'},
+  cloth: {name:'Cloth', tier:'refined', desc:'Woven fabric', glyph:'~', color:'#bbb'},
+  leather: {name:'Leather', tier:'refined', desc:'Tanned hide', glyph:'l', color:'#b86'},
+  
+  // Rare resources
+  diamond: {name:'Diamond', tier:'rare', desc:'Precious gem', glyph:'◊', color:'#6df'},
+  ruby: {name:'Ruby', tier:'rare', desc:'Red gemstone', glyph:'♦', color:'#f44'},
+  gold: {name:'Gold', tier:'rare', desc:'Precious metal', glyph:'$', color:'#fc0'},
+  crystal: {name:'Crystal', tier:'rare', desc:'Magic crystal', glyph:'✦', color:'#c9f'},
+  obsidian: {name:'Obsidian', tier:'rare', desc:'Volcanic glass', glyph:'■', color:'#222'}
 };
 
 // ========== STATE ==========
@@ -224,7 +259,7 @@ const state = {
   region: {type:'forest', width:FOREST_W, height:FOREST_H, camX:0, camY:0},
   activeTool: 1, // 1=Spade, 2=Club, 3=Heart, 4=Diamond
   tutorial: {didDig:false, didStrike:false, didFocus:false, didCraftKey:false, didCraftAxe:false},
-  resources: {ore:0, herb:0, scrap:0, key:0, wood:0},
+  resources: {ore:0, herb:0, scrap:0, key:0, wood:0, coal:0, cloth:0, leather:0, diamond:0, ruby:0, gold:0, crystal:0, obsidian:0},
   inventory: [], // Items that augment tool abilities: {name, type, bonus, special}
   entities: [], // {type, x, y, hp, glyph, state: 'idle'|'hunting'|'fleeing'|'resting'}
   items: [], // {type, x, y, glyph}
@@ -234,6 +269,7 @@ const state = {
   helpOpen: false,
   inventoryOpen: false,
   craftingMenuOpen: false,
+  craftingMenuPage: 0, // For scrolling through recipes
   weather: 'clear', // clear, rain, fog
   dayNightCycle: 'day', // day, dusk, night, dawn
   lastWeatherChange: 0,
@@ -486,25 +522,46 @@ function useDiamond(x,y){
 
 function openCraftingMenu(){
   state.craftingMenuOpen = true;
+  state.craftingMenuPage = 0; // Reset to first page
+  displayCraftingPage();
+}
+
+function displayCraftingPage(){
+  const RECIPES_PER_PAGE = 9;
+  
+  // Collect all unlocked recipes
+  const allUnlockedRecipes = [];
+  for(const [id, recipe] of Object.entries(RECIPES)){
+    if(state.unlockedRecipes.has(id)){
+      allUnlockedRecipes.push({id, recipe});
+    }
+  }
+  
+  const totalPages = Math.ceil(allUnlockedRecipes.length / RECIPES_PER_PAGE);
+  const currentPage = Math.max(0, Math.min(state.craftingMenuPage, totalPages - 1));
+  state.craftingMenuPage = currentPage;
+  
+  const startIdx = currentPage * RECIPES_PER_PAGE;
+  const endIdx = Math.min(startIdx + RECIPES_PER_PAGE, allUnlockedRecipes.length);
+  const pageRecipes = allUnlockedRecipes.slice(startIdx, endIdx);
+  
   log('=== CRAFTING MENU ===');
+  log(`Page ${currentPage + 1}/${totalPages} (Use - / = to navigate)`);
   log('Available recipes (type number to craft):');
   
-  let num = 1;
   const availableRecipes = [];
-  
-  for(const [id, recipe] of Object.entries(RECIPES)){
-    if(!state.unlockedRecipes.has(id)) continue;
-    
+  pageRecipes.forEach((item, idx) => {
+    const {id, recipe} = item;
+    const num = idx + 1;
     const canCraft = canCraftRecipe(recipe);
     const status = canCraft ? '<span style="color:#6d6">✓</span>' : '<span style="color:#d44">✗</span>';
     const inputStr = Object.entries(recipe.inputs).map(([r,amt])=>`${RESOURCE_INFO[r]?.name||r}×${amt}`).join('+');
     
     log(`${status} [${num}] ${recipe.name}: ${inputStr} → ${recipe.desc}`);
     availableRecipes.push({num, id, recipe});
-    num++;
-  }
+  });
   
-  log('Press 0 to cancel');
+  log('Press 0 to cancel, - for prev page, = for next page');
   state.availableRecipes = availableRecipes;
 }
 
@@ -543,7 +600,9 @@ function craftRecipe(recipeId){
       // Unlock new recipes based on what was crafted
       if(item.special==='workbench'){
         state.unlockedRecipes.add('pickaxe');
-        log('<span style="color:#5ad">New recipe unlocked: Pickaxe!</span>');
+        state.unlockedRecipes.add('steelSword');
+        state.unlockedRecipes.add('shield');
+        log('<span style="color:#5ad">New recipes unlocked: Pickaxe, Steel Sword, Shield!</span>');
       }
     } else {
       state.resources[output] = (state.resources[output] || 0) + amount;
@@ -556,11 +615,29 @@ function craftRecipe(recipeId){
     }
   }
   
-  // Unlock advanced recipes after first craft
+  // Progressive recipe unlocking system
   if(state.inventory.length >= 1 && !state.unlockedRecipes.has('hammer')){
+    // Unlock intermediate recipes after first craft
     state.unlockedRecipes.add('hammer');
     state.unlockedRecipes.add('workbench');
-    log('<span style="color:#5ad">New recipes unlocked: Hammer, Portable Workbench!</span>');
+    state.unlockedRecipes.add('bandage');
+    log('<span style="color:#5ad">New recipes unlocked: Hammer, Workbench, Bandage!</span>');
+  }
+  
+  // Unlock expert recipes when player has 3+ inventory items
+  if(state.inventory.length >= 3 && !state.unlockedRecipes.has('diamondPick')){
+    state.unlockedRecipes.add('diamondPick');
+    state.unlockedRecipes.add('flameSword');
+    state.unlockedRecipes.add('amulet');
+    log('<span style="color:#5ad">Expert recipes unlocked: Diamond Pickaxe, Flame Sword, Life Amulet!</span>');
+  }
+  
+  // Unlock master recipes when player has 5+ inventory items
+  if(state.inventory.length >= 5 && !state.unlockedRecipes.has('obsidianArmor')){
+    state.unlockedRecipes.add('obsidianArmor');
+    state.unlockedRecipes.add('elderWand');
+    state.unlockedRecipes.add('legendBlade');
+    log('<span style="color:#5ad">Master recipes unlocked: Obsidian Armor, Elder Wand, Legendary Blade!</span>');
   }
 }
 
@@ -1008,6 +1085,14 @@ function updateHUD(){
   scrap.textContent = state.resources.scrap;
   key.textContent = state.resources.key;
   wood.textContent = state.resources.wood;
+  coal.textContent = state.resources.coal;
+  diamond.textContent = state.resources.diamond;
+  ruby.textContent = state.resources.ruby;
+  gold.textContent = state.resources.gold;
+  cloth.textContent = state.resources.cloth;
+  leather.textContent = state.resources.leather;
+  crystal.textContent = state.resources.crystal;
+  obsidian.textContent = state.resources.obsidian;
   
   activeTool.textContent = toolName(state.activeTool);
   
@@ -1089,6 +1174,22 @@ addEventListener('keydown', (e)=>{
       e.preventDefault();
       return;
     }
+    // Page navigation
+    if(k==='-' || k==='_'){
+      state.craftingMenuPage = Math.max(0, state.craftingMenuPage - 1);
+      displayCraftingPage();
+      render();
+      e.preventDefault();
+      return;
+    }
+    if(k==='=' || k==='+'){
+      state.craftingMenuPage++;
+      displayCraftingPage();
+      render();
+      e.preventDefault();
+      return;
+    }
+    // Recipe selection
     const num = parseInt(k);
     if(!isNaN(num) && num >= 1 && num <= 9){
       const recipe = state.availableRecipes?.find(r=>r.num===num);
@@ -1153,6 +1254,14 @@ const herb = document.getElementById('herb');
 const scrap = document.getElementById('scrap');
 const key = document.getElementById('key');
 const wood = document.getElementById('wood');
+const coal = document.getElementById('coal');
+const diamond = document.getElementById('diamond');
+const ruby = document.getElementById('ruby');
+const gold = document.getElementById('gold');
+const cloth = document.getElementById('cloth');
+const leather = document.getElementById('leather');
+const crystal = document.getElementById('crystal');
+const obsidian = document.getElementById('obsidian');
 const activeTool = document.getElementById('activeTool');
 const inventoryList = document.getElementById('inventoryList');
 const tutDig = document.getElementById('tutDig');
