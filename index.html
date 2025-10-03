@@ -411,6 +411,10 @@ function generateForest(w=FOREST_W, h=FOREST_H){
     const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
     if(m[y][x]===TILES.FLOOR) state.items.push({type:'wood',x,y,glyph:'w'});
   }
+  for(let i=0; i<40; i++){
+    const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
+    if(m[y][x]===TILES.FLOOR) state.items.push({type:'coal',x,y,glyph:'c'});
+  }
   for(let i=0; i<100; i++){
     const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
     if(m[y][x]===TILES.FLOOR) m[y][x]=TILES.RUBBLE;
