@@ -46,6 +46,39 @@
     .flagComplete{color:var(--success)} .flagMissing{color:var(--error)}
     .unlockMsg{color:var(--success); font-weight:bold} .warnMsg{color:var(--warning)}
     
+    /* Modal Overlays */
+    .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);
+                   z-index:999;display:none;backdrop-filter:blur(2px)}
+    .modal-overlay.show{display:flex;align-items:center;justify-content:center}
+    
+    .modal-content{background:#0d0d0d;border:2px solid var(--diamond);
+                   padding:0;max-width:700px;width:90%;max-height:85vh;
+                   box-shadow:0 0 30px rgba(90,173,221,0.3);
+                   display:flex;flex-direction:column}
+    
+    .modal-header{padding:16px 20px;border-bottom:2px solid var(--line);
+                  display:flex;justify-content:space-between;align-items:center}
+    .modal-header h3{margin:0;color:var(--diamond);font-size:18px;letter-spacing:0.5px}
+    .modal-header .page-indicator{color:var(--muted);font-size:13px}
+    
+    .modal-body{padding:20px;overflow-y:auto;flex:1}
+    .modal-footer{padding:12px 20px;border-top:2px solid var(--line);
+                  color:var(--muted);font-size:12px;text-align:center}
+    
+    .recipe-item{padding:12px;margin:8px 0;border:1px solid var(--line);
+                 background:#0a0a0a;cursor:pointer;transition:all 0.2s}
+    .recipe-item:hover{background:#151515;border-color:var(--diamond)}
+    .recipe-item.craftable{border-left:3px solid var(--success)}
+    .recipe-item.locked{border-left:3px solid var(--error);opacity:0.6}
+    
+    .recipe-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+    .recipe-name{color:var(--ink);font-weight:bold;font-size:15px}
+    .recipe-number{color:var(--diamond);font-size:13px;padding:2px 8px;
+                   border:1px solid var(--diamond);border-radius:2px}
+    .recipe-details{color:var(--muted);font-size:13px;line-height:1.6}
+    .recipe-inputs{color:var(--warning)}
+    .recipe-desc{color:var(--muted);font-style:italic}
+    
     /* Help overlay */
     #helpOverlay{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
                  background:#111;border:2px solid var(--line);padding:20px;z-index:1000;
@@ -86,15 +119,7 @@ Active: <span id="activeTool"></span></div>
         <div class="panel">[ INVENTORY ]
 <div id="inventoryList" style="font-size:12px;color:var(--muted);">Empty</div></div>
 
-        <div class="panel">[ RESOURCES ]
-Ore: <span id="ore"></span>  Herb: <span id="herb"></span>  Wood: <span id="wood"></span>
-Coal: <span id="coal"></span>  Scrap: <span id="scrap"></span>  Key: <span id="key"></span>
-<div style="font-size:11px;margin-top:2px;color:var(--muted)">
-Diamond: <span id="diamond"></span>  Ruby: <span id="ruby"></span>  Gold: <span id="gold"></span>
-Cloth: <span id="cloth"></span>  Leather: <span id="leather"></span>  Crystal: <span id="crystal"></span>  Obsidian: <span id="obsidian"></span>
-</div></div>
-
-        <div class="panel" id="envPanel" style="display:none">[ ENVIRONMENT ]
+        <div class="panel" id="envPanel">[ ENVIRONMENT ]
 Time: <span id="timeOfDay"></span>
 Weather: <span id="weather"></span></div>
 
@@ -113,6 +138,20 @@ Weather: <span id="weather"></span></div>
     </main>
 
     <footer class="mono dim">Lost Poets v0.3 — Living World Simulation</footer>
+  </div>
+
+  <!-- Crafting Menu Modal -->
+  <div id="craftingOverlay" class="modal-overlay">
+    <div class="modal-content mono">
+      <div class="modal-header">
+        <h3>⟡ CRAFTING MENU ⟡</h3>
+        <span class="page-indicator" id="craftingPageInfo"></span>
+      </div>
+      <div class="modal-body" id="craftingRecipes"></div>
+      <div class="modal-footer">
+        <kbd>1-9</kbd> Select Recipe · <kbd>-</kbd> Previous Page · <kbd>=</kbd> Next Page · <kbd>0</kbd> or <kbd>ESC</kbd> Cancel
+      </div>
+    </div>
   </div>
 
   <div id="helpOverlay">
@@ -524,6 +563,13 @@ function openCraftingMenu(){
   state.craftingMenuOpen = true;
   state.craftingMenuPage = 0; // Reset to first page
   displayCraftingPage();
+  craftingOverlay.className = 'modal-overlay show';
+}
+
+function closeCraftingMenu(){
+  state.craftingMenuOpen = false;
+  craftingOverlay.className = 'modal-overlay';
+  log('Crafting menu closed.');
 }
 
 function displayCraftingPage(){
@@ -537,7 +583,7 @@ function displayCraftingPage(){
     }
   }
   
-  const totalPages = Math.ceil(allUnlockedRecipes.length / RECIPES_PER_PAGE);
+  const totalPages = Math.ceil(allUnlockedRecipes.length / RECIPES_PER_PAGE) || 1;
   const currentPage = Math.max(0, Math.min(state.craftingMenuPage, totalPages - 1));
   state.craftingMenuPage = currentPage;
   
@@ -545,24 +591,57 @@ function displayCraftingPage(){
   const endIdx = Math.min(startIdx + RECIPES_PER_PAGE, allUnlockedRecipes.length);
   const pageRecipes = allUnlockedRecipes.slice(startIdx, endIdx);
   
-  log('=== CRAFTING MENU ===');
-  log(`Page ${currentPage + 1}/${totalPages} (Use - / = to navigate)`);
-  log('Available recipes (type number to craft):');
+  // Update page indicator
+  craftingPageInfo.textContent = `Page ${currentPage + 1} of ${totalPages}`;
   
+  // Build recipe list HTML
+  let html = '';
   const availableRecipes = [];
+  
   pageRecipes.forEach((item, idx) => {
     const {id, recipe} = item;
     const num = idx + 1;
     const canCraft = canCraftRecipe(recipe);
-    const status = canCraft ? '<span style="color:#6d6">✓</span>' : '<span style="color:#d44">✗</span>';
-    const inputStr = Object.entries(recipe.inputs).map(([r,amt])=>`${RESOURCE_INFO[r]?.name||r}×${amt}`).join('+');
+    const statusClass = canCraft ? 'craftable' : 'locked';
+    const inputStr = Object.entries(recipe.inputs).map(([r,amt])=>`${RESOURCE_INFO[r]?.name||r}×${amt}`).join(' + ');
     
-    log(`${status} [${num}] ${recipe.name}: ${inputStr} → ${recipe.desc}`);
+    html += `
+      <div class="recipe-item ${statusClass}" data-recipe-num="${num}">
+        <div class="recipe-header">
+          <span class="recipe-name">${recipe.name}</span>
+          <span class="recipe-number">[${num}]</span>
+        </div>
+        <div class="recipe-details">
+          <div class="recipe-inputs">Requires: ${inputStr}</div>
+          <div class="recipe-desc">${recipe.desc}</div>
+        </div>
+      </div>
+    `;
+    
     availableRecipes.push({num, id, recipe});
   });
   
-  log('Press 0 to cancel, - for prev page, = for next page');
+  if(html === ''){
+    html = '<div style="text-align:center;color:var(--muted);padding:40px">No recipes unlocked yet. Explore and gather resources!</div>';
+  }
+  
+  craftingRecipes.innerHTML = html;
   state.availableRecipes = availableRecipes;
+  
+  // Add click handlers to recipe items
+  document.querySelectorAll('.recipe-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const num = parseInt(item.dataset.recipeNum);
+      if(!isNaN(num)){
+        const recipe = state.availableRecipes?.find(r=>r.num===num);
+        if(recipe){
+          craftRecipe(recipe.id);
+          closeCraftingMenu();
+          render();
+        }
+      }
+    });
+  });
 }
 
 function canCraftRecipe(recipe){
@@ -1080,20 +1159,6 @@ function updateHUD(){
   int_.textContent = pad(state.player.int,2);
   agi.textContent = pad(state.player.agi,2);
   
-  ore.textContent = state.resources.ore;
-  herb.textContent = state.resources.herb;
-  scrap.textContent = state.resources.scrap;
-  key.textContent = state.resources.key;
-  wood.textContent = state.resources.wood;
-  coal.textContent = state.resources.coal;
-  diamond.textContent = state.resources.diamond;
-  ruby.textContent = state.resources.ruby;
-  gold.textContent = state.resources.gold;
-  cloth.textContent = state.resources.cloth;
-  leather.textContent = state.resources.leather;
-  crystal.textContent = state.resources.crystal;
-  obsidian.textContent = state.resources.obsidian;
-  
   activeTool.textContent = toolName(state.activeTool);
   
   // Tool buttons
@@ -1167,9 +1232,8 @@ addEventListener('keydown', (e)=>{
   
   // Crafting menu handling
   if(state.craftingMenuOpen){
-    if(k==='0'){
-      state.craftingMenuOpen = false;
-      log('Crafting cancelled.');
+    if(k==='0' || k==='Escape'){
+      closeCraftingMenu();
       render();
       e.preventDefault();
       return;
@@ -1178,14 +1242,12 @@ addEventListener('keydown', (e)=>{
     if(k==='-' || k==='_'){
       state.craftingMenuPage = Math.max(0, state.craftingMenuPage - 1);
       displayCraftingPage();
-      render();
       e.preventDefault();
       return;
     }
     if(k==='=' || k==='+'){
       state.craftingMenuPage++;
       displayCraftingPage();
-      render();
       e.preventDefault();
       return;
     }
@@ -1195,7 +1257,7 @@ addEventListener('keydown', (e)=>{
       const recipe = state.availableRecipes?.find(r=>r.num===num);
       if(recipe){
         craftRecipe(recipe.id);
-        state.craftingMenuOpen = false;
+        closeCraftingMenu();
         render();
       }
       e.preventDefault();
@@ -1249,19 +1311,6 @@ const stamMax = document.getElementById('stamMax');
 const str = document.getElementById('str');
 const int_ = document.getElementById('int');
 const agi = document.getElementById('agi');
-const ore = document.getElementById('ore');
-const herb = document.getElementById('herb');
-const scrap = document.getElementById('scrap');
-const key = document.getElementById('key');
-const wood = document.getElementById('wood');
-const coal = document.getElementById('coal');
-const diamond = document.getElementById('diamond');
-const ruby = document.getElementById('ruby');
-const gold = document.getElementById('gold');
-const cloth = document.getElementById('cloth');
-const leather = document.getElementById('leather');
-const crystal = document.getElementById('crystal');
-const obsidian = document.getElementById('obsidian');
 const activeTool = document.getElementById('activeTool');
 const inventoryList = document.getElementById('inventoryList');
 const tutDig = document.getElementById('tutDig');
@@ -1272,6 +1321,9 @@ const tutAxe = document.getElementById('tutAxe');
 const mapTitle = document.getElementById('mapTitle');
 const logEl = document.getElementById('log');
 const helpOverlay = document.getElementById('helpOverlay');
+const craftingOverlay = document.getElementById('craftingOverlay');
+const craftingPageInfo = document.getElementById('craftingPageInfo');
+const craftingRecipes = document.getElementById('craftingRecipes');
 const envPanel = document.getElementById('envPanel');
 const timeOfDay = document.getElementById('timeOfDay');
 const weather = document.getElementById('weather');
