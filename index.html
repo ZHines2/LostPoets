@@ -477,6 +477,18 @@ function isLitByTorch(x, y){
   return false;
 }
 
+function distanceToNearestTorch(x, y){
+  // Get distance to nearest torch for shading calculation
+  let minDist = Infinity;
+  for(const light of state.placedLights){
+    const dx = x - light.x;
+    const dy = y - light.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if(dist < minDist) minDist = dist;
+  }
+  return minDist;
+}
+
 function shadeClass(dist, visRadius){
   if(dist<=0) return 'v0';
   const t = Math.min(1, dist / visRadius);
@@ -1218,10 +1230,22 @@ function render(){
           continue;
         }
         
+        // Determine shading: use torch distance if lit by torch, otherwise use player distance
+        let shading;
+        if(litByTorch && dist > visRadius){
+          // Lit by torch but outside player vision - use torch-based shading
+          const torchDist = distanceToNearestTorch(wx, wy);
+          const torchRadius = 5; // Standard torch radius
+          shading = shadeClass(torchDist, torchRadius);
+        } else {
+          // Within player vision - use player-based shading
+          shading = shadeClass(dist, visRadius);
+        }
+        
         // Entities
         const ent = state.entities.find(e=>e.x===wx&&e.y===wy);
         if(ent){
-          out += `<span class="${shadeClass(dist,visRadius)} entity">${ent.glyph}</span>`;
+          out += `<span class="${shading} entity">${ent.glyph}</span>`;
           continue;
         }
         
@@ -1232,13 +1256,13 @@ function render(){
           if(item.type==='ore') cls = 'ore';
           else if(item.type==='herb') cls = 'herb';
           else if(item.type==='wood') cls = 'item';
-          out += `<span class="${shadeClass(dist,visRadius)} ${cls}">${item.glyph}</span>`;
+          out += `<span class="${shading} ${cls}">${item.glyph}</span>`;
           continue;
         }
         
         // Tiles
         const tile = state.map[wy][wx];
-        out += `<span class="${shadeClass(dist,visRadius)} ${tile.cls}">${tile.ch}</span>`;
+        out += `<span class="${shading} ${tile.cls}">${tile.ch}</span>`;
       } else {
         if(!seen){
           out += `<span class="fog"> </span>`;
