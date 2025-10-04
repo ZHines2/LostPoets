@@ -93,7 +93,7 @@
 </head>
 <body>
   <div class="wrap">
-    <header class="mono">LOST POETS — Forest Exploration · <span class="help">Move <kbd>WASD</kbd> · Shift+Dir=Use Tool · <kbd>1-4</kbd> Select Tool · <kbd>I</kbd> Inventory · <kbd>H</kbd> Help · <kbd>Q</kbd> Reload</span></header>
+    <header class="mono">LOST POETS — Forest Exploration · <span class="help">Move <kbd>WASD</kbd> · Shift+Dir=Use Tool · <kbd>1-4</kbd> Select Tool · <kbd>I</kbd> Inventory · <kbd>H</kbd> Help · <kbd>L</kbd> Lab · <kbd>Q</kbd> Reload</span></header>
 
     <main id="game">
       <section class="frame">
@@ -133,7 +133,8 @@ Weather: <span id="weather"></span></div>
         <div class="panel dim">[ CONTROLS ]
 <kbd>H</kbd>/<kbd>K</kbd> Help · <kbd>I</kbd> Inventory
 <kbd>G</kbd> Pick up · <kbd>P</kbd> Place torch
-<kbd>R</kbd> Rest · <kbd>O</kbd> Observe · <kbd>V</kbd> Vis toggle</div>
+<kbd>R</kbd> Rest · <kbd>O</kbd> Observe · <kbd>V</kbd> Vis toggle
+<kbd>L</kbd> Secret Lab</div>
       </aside>
     </main>
 
@@ -186,7 +187,7 @@ Weather: <span id="weather"></span></div>
       <li>&nbsp;&nbsp;• <strong>3=♥Heart</strong> - Communicate/meditate (internal functions)</li>
       <li>&nbsp;&nbsp;• <strong>4=♦Diamond</strong> - Craft at workbench (choose recipes!)</li>
       <li><strong>Use Tool:</strong> Shift+Direction or E (facing dir)</li>
-      <li><strong>Actions:</strong> G=Pick up, P=Place torch, R=Rest, O=Observe, .=Wait, I=Inventory</li>
+      <li><strong>Actions:</strong> G=Pick up, P=Place torch, R=Rest, O=Observe, .=Wait, I=Inventory, L=Teleport to Lab</li>
       <li><strong>Crafting System (16 recipes!):</strong></li>
       <li>&nbsp;&nbsp;• Select Diamond tool (press 4) then use at workbench (Shift+Dir or E)</li>
       <li>&nbsp;&nbsp;• Press 1-9 to select recipe, 0 to cancel</li>
@@ -378,11 +379,98 @@ function loadForestWithTemple(){
     }
   }
   
+  // Build secret laboratory far away from origin (bottom-right corner)
+  buildSecretLaboratory(m);
+  
   // Set player position inside temple
   state.player.x = templeOffsetX + 2;
   state.player.y = templeOffsetY + 1;
   state.region = {type:'forest', width:FOREST_W, height:FOREST_H, camX:0, camY:0};
   return m;
+}
+
+function buildSecretLaboratory(m){
+  // Laboratory in far corner: bottom-right area
+  const labX = FOREST_W - 35;
+  const labY = FOREST_H - 35;
+  const labW = 30;
+  const labH = 30;
+  
+  // Clear area and build walls
+  for(let y=labY; y<labY+labH; y++){
+    for(let x=labX; x<labX+labW; x++){
+      if(y===labY || y===labY+labH-1 || x===labX || x===labX+labW-1){
+        m[y][x] = TILES.WALL;
+      } else {
+        m[y][x] = TILES.FLOOR;
+      }
+    }
+  }
+  
+  // Add entrance door
+  m[labY+labH-1][labX+15] = TILES.OPEN_DOOR;
+  
+  // Add sign/marker outside entrance
+  state.items.push({type:'crystal',x:labX+15,y:labY+labH,glyph:'✦'});
+  
+  // Place workbenches in corners for crafting
+  m[labY+2][labX+2] = TILES.BENCH;
+  m[labY+2][labX+labW-3] = TILES.BENCH;
+  m[labY+labH-3][labX+2] = TILES.BENCH;
+  m[labY+labH-3][labX+labW-3] = TILES.BENCH;
+  
+  // Organized resource grid - all basic resources (10 of each)
+  let itemX = labX+5, itemY = labY+5;
+  const resourceTypes = ['ore', 'herb', 'wood', 'coal', 'scrap', 'cloth', 'leather'];
+  for(const resType of resourceTypes){
+    for(let i=0; i<10; i++){
+      const info = RESOURCE_INFO[resType];
+      if(info){
+        state.items.push({type:resType, x:itemX+i, y:itemY, glyph:info.glyph});
+      }
+    }
+    itemY += 2;
+  }
+  
+  // Rare resources section (5 of each)
+  itemY = labY+5;
+  itemX = labX+18;
+  const rareTypes = ['diamond', 'ruby', 'gold', 'crystal', 'obsidian'];
+  for(const resType of rareTypes){
+    for(let i=0; i<5; i++){
+      const info = RESOURCE_INFO[resType];
+      if(info){
+        state.items.push({type:resType, x:itemX+i, y:itemY, glyph:info.glyph});
+      }
+    }
+    itemY += 2;
+  }
+  
+  // Torch testing area - pre-placed torches showing illumination
+  const torchY = labY+20;
+  state.placedLights.push({x:labX+5, y:torchY, radius:5, type:'torch'});
+  state.placedLights.push({x:labX+15, y:torchY, radius:5, type:'torch'});
+  state.placedLights.push({x:labX+25, y:torchY, radius:5, type:'torch'});
+  
+  // Extra torch items to pick up
+  for(let i=0; i<10; i++){
+    state.items.push({type:'torch', x:labX+5+i*2, y:torchY+2, glyph:'⚍'});
+  }
+  
+  // Add keys for testing doors
+  for(let i=0; i<5; i++){
+    state.items.push({type:'key', x:labX+5+i, y:labY+24, glyph:'k'});
+  }
+  
+  // Test entities - different types
+  state.entities.push({type:'rat',x:labX+10,y:labY+26,hp:3,glyph:'r',state:'idle'});
+  state.entities.push({type:'scav',x:labX+15,y:labY+26,hp:5,glyph:'r',state:'idle'});
+  
+  // Various tile types for testing
+  m[labY+26][labX+20] = TILES.SOFT;
+  m[labY+26][labX+22] = TILES.RUBBLE;
+  m[labY+26][labX+24] = TILES.TREE;
+  m[labY+26][labX+26] = TILES.DOOR;
 }
 
 function generateForest(w=FOREST_W, h=FOREST_H){
@@ -908,6 +996,17 @@ function placeTorch(){
 function wait(){
   log('You wait.');
   worldTick();
+}
+
+function teleportToLab(){
+  // Teleport to secret laboratory entrance
+  const labX = FOREST_W - 35;
+  const labY = FOREST_H - 35;
+  state.player.x = labX + 15;
+  state.player.y = labY + 31; // Just outside the entrance
+  updateCamera();
+  log('<span class="unlockMsg">✦ Teleported to Secret Laboratory! ✦</span>');
+  render();
 }
 
 function inc(k,amt){ state.player[k]=Math.round((state.player[k]+amt)*100)/100; }
@@ -1458,6 +1557,7 @@ addEventListener('keydown', (e)=>{
   else if(k==='v'||k==='V') { state.visibilityOn=!state.visibilityOn; log('Visibility '+(state.visibilityOn?'ON':'OFF')); render(); }
   else if(k==='h'||k==='H'||k==='k'||k==='K') toggleHelp();
   else if(k==='q'||k==='Q') location.reload();
+  else if(k==='l'||k==='L') teleportToLab();
   else if(k==='?') log('Press H or K for detailed help.');
 });
 
