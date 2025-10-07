@@ -350,6 +350,238 @@ function srand(s){ _seed=s%2147483647; if(_seed<=0) _seed+=2147483646; }
 function rand(){ return _seed = _seed*16807 % 2147483647; }
 function rf(){ return (rand()-1)/2147483646; }
 
+// ========== ACTOR CORE (Phase 0) ==========
+// Generic actor + action system to support future:
+// - Multi-party control (player companions, squad tactics)
+// - Autonomous NPC behaviors (scheduled actions, AI initiative)
+// - Time dilation & queued simulation (DF-style world ticks)
+// - Replay, network sync, tactical battle instances
+//
+// Phase 0 (this PR): Minimal structure + player movement migration
+// Phase 1 (future): Migrate state.entities into actors with AI action injection
+// Phase 2 (future): Convert dig/attack/rest into discrete actions with costs/cooldowns
+// Phase 3 (future): Initiative ordering based on speed stats + batched frames
+// Phase 4 (future): Tactical battle instances reuse Actor schema for party+enemy squads
+
+// Actor Core registry - initialized after state setup
+// Will be set in init(): state.actorCore = { actors:{}, order:[], nextId:1, actionQueue:[] }
+
+function createActor(spec){
+  // Creates a new actor with stats, meta, and memory
+  // spec: {id, type, x, y, hp, hpMax, str, int, agi, stamina, stamMax, facing, ...}
+  // Returns actor object with standardized structure
+  const actor = {
+    id: spec.id,
+    type: spec.type || 'generic',
+    
+    // Position
+    x: spec.x || 0,
+    y: spec.y || 0,
+    
+    // Stats
+    hp: spec.hp || 10,
+    hpMax: spec.hpMax || 10,
+    str: spec.str || 5,
+    int: spec.int || 5,
+    agi: spec.agi || 5,
+    stamina: spec.stamina || 10,
+    stamMax: spec.stamMax || 10,
+    
+    // Metadata
+    facing: spec.facing || {dx:0, dy:1},
+    
+    // Future: AI state, memory, schedule, cooldowns
+    memory: spec.memory || {},
+    
+    // Copy any additional properties
+    ...spec
+  };
+  
+  return actor;
+}
+
+function queueAction(actorId, action){
+  // Enqueue an action for processing on next tick
+  // action: {type, params}
+  if(!state.actorCore) return;
+  
+  state.actorCore.actionQueue.push({
+    actorId: actorId,
+    action: action
+  });
+}
+
+function processActions(){
+  // Process all queued actions at start of worldTick
+  // Future: Sort by initiative/speed before processing
+  if(!state.actorCore) return;
+  
+  const queue = state.actorCore.actionQueue;
+  state.actorCore.actionQueue = []; // Clear queue
+  
+  for(const entry of queue){
+    performAction(entry);
+  }
+}
+
+function performAction(entry){
+  // Generic action dispatcher
+  // entry: {actorId, action:{type, params}}
+  const {actorId, action} = entry;
+  const actor = state.actorCore.actors[actorId];
+  
+  if(!actor){
+    console.warn(`[ActorCore] Actor ${actorId} not found`);
+    return;
+  }
+  
+  // Dispatch based on action type
+  if(action.type === 'move'){
+    performMove(actor, action);
+  }
+  // Future action types (commented placeholders):
+  // else if(action.type === 'dig') performDig(actor, action);
+  // else if(action.type === 'attack') performAttack(actor, action);
+  // else if(action.type === 'rest') performRest(actor, action);
+  // else if(action.type === 'craft') performCraft(actor, action);
+  // else if(action.type === 'pickup') performPickup(actor, action);
+  // else if(action.type === 'wait') performWait(actor, action);
+  else {
+    console.warn(`[ActorCore] Unknown action type: ${action.type}`);
+  }
+}
+
+function performMove(actor, action){
+  // Execute movement action with bounds, collision, walkable checks
+  // action.params: {dx, dy}
+  const {dx, dy} = action.params;
+  const nx = actor.x + dx;
+  const ny = actor.y + dy;
+  
+  // Bounds check
+  if(!inBounds(nx, ny)) return;
+  
+  // Update facing
+  actor.facing = {dx, dy};
+  
+  // Walkable tile check
+  const tile = state.map[ny][nx];
+  if(!tile.walk){
+    if(tile === TILES.DOOR){
+      log('The door is locked.');
+    } else {
+      log('Blocked.');
+    }
+    return;
+  }
+  
+  // Entity collision check
+  if(state.entities.find(e => e.x === nx && e.y === ny)){
+    log('Something is in the way.');
+    return;
+  }
+  
+  // Perform movement
+  actor.x = nx;
+  actor.y = ny;
+  
+  // Micro stat gain (agility from movement)
+  actor.agi = Math.round((actor.agi + 0.01) * 100) / 100;
+  
+  // Future: Stamina cost injection, terrain effects, trigger events
+}
+
+function initActorSystemPlayer(){
+  // Initialize player as actor, binding to existing state.player
+  if(!state.actorCore){
+    state.actorCore = {
+      actors: {},
+      order: [],
+      nextId: 1,
+      actionQueue: []
+    };
+  }
+  
+  const playerId = state.actorCore.nextId++;
+  const playerActor = createActor({
+    id: playerId,
+    type: 'player',
+    x: state.player.x,
+    y: state.player.y,
+    hp: state.player.hp,
+    hpMax: state.player.hpMax,
+    str: state.player.str,
+    int: state.player.int,
+    agi: state.player.agi,
+    stamina: state.player.stamina,
+    stamMax: state.player.stamMax,
+    facing: state.player.facing
+  });
+  
+  state.actorCore.actors[playerId] = playerActor;
+  state.actorCore.order.push(playerId);
+  state.playerId = playerId;
+  
+  console.log('[ActorCore] Player bound to actor system.');
+}
+
+function syncPlayerFromActor(){
+  // Synchronize legacy state.player from actor for backward compatibility
+  // Keeps existing UI/render code working without changes
+  if(!state.playerId || !state.actorCore) return;
+  
+  const actor = state.actorCore.actors[state.playerId];
+  if(!actor) return;
+  
+  state.player.x = actor.x;
+  state.player.y = actor.y;
+  state.player.hp = actor.hp;
+  state.player.hpMax = actor.hpMax;
+  state.player.str = actor.str;
+  state.player.int = actor.int;
+  state.player.agi = actor.agi;
+  state.player.stamina = actor.stamina;
+  state.player.stamMax = actor.stamMax;
+  state.player.facing = actor.facing;
+}
+
+function requestPlayerMove(dx, dy){
+  // Queue player movement action and trigger world tick
+  // Replaces direct tryMove() calls in keyboard handler
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'move',
+    params: {dx, dy}
+  });
+  
+  worldTick();
+}
+
+function dumpActors(){
+  // Debug utility: log all actors and queued actions
+  if(!state.actorCore){
+    console.log('[ActorCore] Actor system not initialized');
+    return;
+  }
+  
+  console.log('[ActorCore] === ACTOR REGISTRY ===');
+  console.log('Actors:', state.actorCore.actors);
+  console.log('Order:', state.actorCore.order);
+  console.log('Queued Actions:', state.actorCore.actionQueue);
+  console.log('[ActorCore] ======================');
+  
+  log('Actor debug info logged to console (F12).');
+}
+
+// Extension paths (future phases):
+// - Initiative ordering: Sort actionQueue by actor speed/initiative before processing
+// - Stamina costs: Deduct stamina in performAction, block if insufficient
+// - Convert entities to actors: Migrate state.entities[] into actorCore with AI behaviors
+// - Multi-action frames: Allow multiple actions per actor per tick based on speed
+// - Tactical battle instancing: Create separate actorCore for battle encounters
+// - Save/load persistence: Serialize actorCore when multi-actor system is established
+
 // ========== REGION SETUP ==========
 function loadForestWithTemple(){
   // Generate forest first
@@ -1014,6 +1246,12 @@ function inBounds(x,y){ return x>=0&&y>=0&&x<state.region.width&&y<state.region.
 
 // ========== WORLD SIMULATION ==========
 function worldTick(){
+  // Process actor actions first (Phase 0: player movement)
+  if(state.actorCore) {
+    processActions();
+    syncPlayerFromActor(); // Keep legacy state.player in sync for UI/render
+  }
+  
   state.turns++;
   
   // Forest simulation (always active now)
@@ -1529,16 +1767,16 @@ addEventListener('keydown', (e)=>{
   
   // Movement with Shift = tool use
   if(['ArrowUp','w','W'].includes(k)){
-    if(e.shiftKey) useTool(0,-1); else tryMove(0,-1);
+    if(e.shiftKey) useTool(0,-1); else requestPlayerMove(0,-1);
     e.preventDefault();
   } else if(['ArrowDown','s','S'].includes(k)){
-    if(e.shiftKey) useTool(0,1); else tryMove(0,1);
+    if(e.shiftKey) useTool(0,1); else requestPlayerMove(0,1);
     e.preventDefault();
   } else if(['ArrowLeft','a','A'].includes(k)){
-    if(e.shiftKey) useTool(-1,0); else tryMove(-1,0);
+    if(e.shiftKey) useTool(-1,0); else requestPlayerMove(-1,0);
     e.preventDefault();
   } else if(['ArrowRight','d','D'].includes(k)){
-    if(e.shiftKey) useTool(1,0); else tryMove(1,0);
+    if(e.shiftKey) useTool(1,0); else requestPlayerMove(1,0);
     e.preventDefault();
   }
   // Tool selection
@@ -1558,6 +1796,7 @@ addEventListener('keydown', (e)=>{
   else if(k==='h'||k==='H'||k==='k'||k==='K') toggleHelp();
   else if(k==='q'||k==='Q') location.reload();
   else if(k==='l'||k==='L') teleportToLab();
+  else if(k===';') dumpActors(); // Debug: dump actor registry
   else if(k==='?') log('Press H or K for detailed help.');
 });
 
@@ -1648,6 +1887,10 @@ const audioSystem = {
   state.map = loadForestWithTemple();
   log('Welcome to the Origin Temple. The forest surrounds you. Dig through the walls to escape!');
   state.seen.add(state.player.y*10000+state.player.x);
+  
+  // Initialize actor system and bind player
+  initActorSystemPlayer();
+  
   updateCamera();
   render();
   view.focus();
