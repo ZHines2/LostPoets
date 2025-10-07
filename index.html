@@ -350,16 +350,16 @@ function srand(s){ _seed=s%2147483647; if(_seed<=0) _seed+=2147483646; }
 function rand(){ return _seed = _seed*16807 % 2147483647; }
 function rf(){ return (rand()-1)/2147483646; }
 
-// ========== ACTOR CORE (Phase 0) ==========
+// ========== ACTOR CORE (Phase 0 + Phase 2) ==========
 // Generic actor + action system to support future:
 // - Multi-party control (player companions, squad tactics)
 // - Autonomous NPC behaviors (scheduled actions, AI initiative)
 // - Time dilation & queued simulation (DF-style world ticks)
 // - Replay, network sync, tactical battle instances
 //
-// Phase 0 (this PR): Minimal structure + player movement migration
+// Phase 0 (complete): Minimal structure + player movement migration
 // Phase 1 (future): Migrate state.entities into actors with AI action injection
-// Phase 2 (future): Convert dig/attack/rest into discrete actions with costs/cooldowns
+// Phase 2 (complete): Tool actions (dig/attack/rest/focus/wait/observe) through action queue
 // Phase 3 (future): Initiative ordering based on speed stats + batched frames
 // Phase 4 (future): Tactical battle instances reuse Actor schema for party+enemy squads
 
@@ -439,13 +439,16 @@ function performAction(entry){
   if(action.type === 'move'){
     performMove(actor, action);
   }
+  // Phase 2: Tool actions through queue system
+  else if(action.type === 'dig') performDig(actor, action);
+  else if(action.type === 'attack') performAttack(actor, action);
+  else if(action.type === 'rest') performRest(actor, action);
+  else if(action.type === 'focus') performFocus(actor, action);
+  else if(action.type === 'wait') performWait(actor, action);
+  else if(action.type === 'observe') performObserve(actor, action);
   // Future action types (commented placeholders):
-  // else if(action.type === 'dig') performDig(actor, action);
-  // else if(action.type === 'attack') performAttack(actor, action);
-  // else if(action.type === 'rest') performRest(actor, action);
   // else if(action.type === 'craft') performCraft(actor, action);
   // else if(action.type === 'pickup') performPickup(actor, action);
-  // else if(action.type === 'wait') performWait(actor, action);
   else {
     console.warn(`[ActorCore] Unknown action type: ${action.type}`);
   }
@@ -489,6 +492,149 @@ function performMove(actor, action){
   actor.agi = Math.round((actor.agi + 0.01) * 100) / 100;
   
   // Future: Stamina cost injection, terrain effects, trigger events
+}
+
+function performDig(actor, action){
+  // Execute dig action (spade tool)
+  // action.params: {x, y}
+  const {x, y} = action.params;
+  
+  if(!inBounds(x, y)) return;
+  
+  const tile = state.map[y][x];
+  const tools = state.inventory.filter(i=>i.type==='spade');
+  const bestTool = tools.reduce((best, curr) => (curr.bonus > (best?.bonus||0) ? curr : best), null);
+  const tool = bestTool ? bestTool.name : 'hands';
+  const bonus = bestTool ? bestTool.bonus : 0;
+  const hasMining = tools.some(t=>t.special==='mining');
+  
+  // Check stamina for actions that require it
+  const staminaCost = (tile===TILES.SOFT || tile===TILES.WALL) ? 2 : 1;
+  
+  if(tile===TILES.SOFT){
+    if(actor.stamina < staminaCost){
+      log('<span class="warnMsg">Not enough stamina to dig!</span>');
+      return;
+    }
+    actor.stamina -= staminaCost;
+    state.map[y][x]=TILES.FLOOR;
+    log(`<span class="unlockMsg">You dig away the soft earth with ${tool}.</span>`);
+    if(!state.tutorial.didDig){
+      state.tutorial.didDig=true;
+      log('<span class="unlockMsg">✓ Tutorial: Learned to dig!</span>');
+    }
+  } else if(tile===TILES.RUBBLE){
+    if(actor.stamina < staminaCost){
+      log('<span class="warnMsg">Not enough stamina to clear rubble!</span>');
+      return;
+    }
+    actor.stamina -= staminaCost;
+    state.map[y][x]=TILES.FLOOR;
+    state.resources.scrap++;
+    log(`You clear rubble with ${tool}, gaining scrap.`);
+  } else if(tile===TILES.TREE && bestTool){
+    if(actor.stamina < staminaCost){
+      log('<span class="warnMsg">Not enough stamina to chop!</span>');
+      return;
+    }
+    actor.stamina -= staminaCost;
+    state.map[y][x]=TILES.FLOOR;
+    const woodGained = 2 + bonus;
+    state.resources.wood += woodGained;
+    log(`<span class="unlockMsg">You chop down the tree with ${tool} and collect ${woodGained} wood!</span>`);
+  } else if(tile===TILES.WALL && bestTool){
+    if(actor.stamina < staminaCost){
+      log('<span class="warnMsg">Not enough stamina to break the wall!</span>');
+      return;
+    }
+    actor.stamina -= staminaCost;
+    if(hasMining){
+      state.map[y][x]=TILES.RUBBLE;
+      const oreGained = 1 + Math.floor(bonus/2);
+      state.resources.ore += oreGained;
+      log(`<span class="unlockMsg">You mine the wall with ${tool}, extracting ${oreGained} ore!</span>`);
+      if(rf() < 0.20){
+        state.resources.coal++;
+        log('<span class="unlockMsg">You found coal in the wall!</span>');
+      }
+    } else {
+      state.map[y][x]=TILES.RUBBLE;
+      log(`You hack at the wall with ${tool}, creating rubble.`);
+      if(rf() < 0.20){
+        state.resources.coal++;
+        log('<span class="unlockMsg">You found coal in the wall!</span>');
+      }
+    }
+  } else {
+    log(bestTool ? 'Nothing to dig or chop here.' : 'Nothing to dig here with bare hands.');
+  }
+}
+
+function performAttack(actor, action){
+  // Execute attack action (club tool)
+  // action.params: {x, y}
+  const {x, y} = action.params;
+  
+  const ent = state.entities.find(e=>e.x===x&&e.y===y);
+  const weapon = state.inventory.find(i=>i.type==='club');
+  const tool = weapon ? weapon.name : 'fists';
+  const damage = actor.str + (weapon ? weapon.bonus : 0);
+  
+  if(ent){
+    ent.hp -= damage;
+    log(`You strike the ${ent.type} with ${tool} for ${damage} damage!`);
+    if(ent.hp<=0){
+      log(`<span class="unlockMsg">The ${ent.type} is defeated!</span>`);
+      state.entities = state.entities.filter(e=>e!==ent);
+      if(!state.tutorial.didStrike){
+        state.tutorial.didStrike=true;
+        log('<span class="unlockMsg">✓ Tutorial: Learned to strike!</span>');
+      }
+    }
+  } else {
+    log(`Nothing to strike there with ${tool}.`);
+  }
+}
+
+function performRest(actor, action){
+  // Execute rest action - recover HP
+  if(actor.hp < actor.hpMax){
+    actor.hp = Math.min(actor.hpMax, actor.hp + 1);
+    actor.int = Math.round((actor.int + 0.01) * 100) / 100;
+    log('You rest, recovering 1 HP.');
+  } else {
+    log('Already at full health.');
+  }
+}
+
+function performFocus(actor, action){
+  // Execute focus action (heart tool) - restore HP or stamina
+  if(actor.hp < actor.hpMax && actor.stamina >= 2){
+    actor.hp = Math.min(actor.hpMax, actor.hp + 1);
+    actor.stamina -= 2;
+    log('You focus, restoring 1 HP.');
+  } else if(actor.stamina < actor.stamMax){
+    actor.stamina = Math.min(actor.stamMax, actor.stamina + 3);
+    log('You breathe deeply, restoring stamina.');
+  } else {
+    log('You are already at full health and stamina.');
+  }
+  
+  if(!state.tutorial.didFocus){
+    state.tutorial.didFocus=true;
+    log('<span class="unlockMsg">✓ Tutorial: Learned Heart technique!</span>');
+  }
+}
+
+function performWait(actor, action){
+  // Execute wait action - do nothing, advance turn
+  log('You wait.');
+}
+
+function performObserve(actor, action){
+  // Execute observe action - gain int, no turn advance
+  actor.int = Math.round((actor.int + 0.02) * 100) / 100;
+  log('You observe your surroundings carefully.');
 }
 
 function initActorSystemPlayer(){
@@ -556,6 +702,83 @@ function requestPlayerMove(dx, dy){
   });
   
   worldTick();
+}
+
+function requestPlayerDig(x, y){
+  // Queue player dig action and trigger world tick
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'dig',
+    params: {x, y}
+  });
+  
+  worldTick();
+}
+
+function requestPlayerAttack(x, y){
+  // Queue player attack action and trigger world tick
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'attack',
+    params: {x, y}
+  });
+  
+  worldTick();
+}
+
+function requestPlayerRest(){
+  // Queue player rest action and trigger world tick
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'rest',
+    params: {}
+  });
+  
+  worldTick();
+}
+
+function requestPlayerFocus(){
+  // Queue player focus action and trigger world tick
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'focus',
+    params: {}
+  });
+  
+  worldTick();
+}
+
+function requestPlayerWait(){
+  // Queue player wait action and trigger world tick
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'wait',
+    params: {}
+  });
+  
+  worldTick();
+}
+
+function requestPlayerObserve(){
+  // Queue player observe action (no world tick - doesn't advance turn)
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'observe',
+    params: {}
+  });
+  
+  // Process immediately but don't advance turn
+  if(state.actorCore) {
+    processActions();
+    syncPlayerFromActor();
+  }
+  render();
 }
 
 function dumpActors(){
@@ -827,14 +1050,17 @@ function useTool(dx, dy){
   const tx = state.player.x+dx, ty = state.player.y+dy;
   if(!inBounds(tx,ty)) return;
   
+  // Update facing
+  if(state.actorCore && state.playerId){
+    state.actorCore.actors[state.playerId].facing = {dx, dy};
+  }
   state.player.facing = {dx,dy};
   
-  if(state.activeTool===1) useSpade(tx,ty);
-  else if(state.activeTool===2) useClub(tx,ty);
-  else if(state.activeTool===3) useHeart();
-  else if(state.activeTool===4) useDiamond(tx,ty);
-  
-  worldTick();
+  // Route through action queue system (Phase 2)
+  if(state.activeTool===1) requestPlayerDig(tx,ty);
+  else if(state.activeTool===2) requestPlayerAttack(tx,ty);
+  else if(state.activeTool===3) requestPlayerFocus();
+  else if(state.activeTool===4) useDiamond(tx,ty); // Keep Diamond (craft) direct for now
 }
 
 function useSpade(x,y){
@@ -1788,9 +2014,9 @@ addEventListener('keydown', (e)=>{
   else if(k==='e'||k==='E') useTool(state.player.facing.dx, state.player.facing.dy);
   else if(k==='g'||k==='G') pickup();
   else if(k==='p'||k==='P') placeTorch();
-  else if(k==='.') wait();
-  else if(k==='r'||k==='R') rest();
-  else if(k==='o'||k==='O') observe();
+  else if(k==='.') requestPlayerWait();
+  else if(k==='r'||k==='R') requestPlayerRest();
+  else if(k==='o'||k==='O') requestPlayerObserve();
   else if(k==='i'||k==='I') { showInventory(); }
   else if(k==='v'||k==='V') { state.visibilityOn=!state.visibilityOn; log('Visibility '+(state.visibilityOn?'ON':'OFF')); render(); }
   else if(k==='h'||k==='H'||k==='k'||k==='K') toggleHelp();
