@@ -188,6 +188,12 @@ Weather: <span id="weather"></span></div>
       <li>&nbsp;&nbsp;• <strong>4=♦Diamond</strong> - Craft at workbench (choose recipes!)</li>
       <li><strong>Use Tool:</strong> Shift+Direction or E (facing dir)</li>
       <li><strong>Actions:</strong> G=Pick up, P=Place torch, R=Rest, O=Observe, .=Wait, I=Inventory, L=Teleport to Lab</li>
+      <li><strong>AI Driver (Autonomous Play):</strong></li>
+      <li>&nbsp;&nbsp;• <strong>[</strong> = Toggle AI on/off (starts in explore mode)</li>
+      <li>&nbsp;&nbsp;• <strong>]</strong> = Show AI statistics</li>
+      <li>&nbsp;&nbsp;• AI explores, gathers items, and interacts with the world automatically</li>
+      <li>&nbsp;&nbsp;• Console commands: startAI('mode', speed), stopAI(), aiSetMode('mode'), aiStats()</li>
+      <li>&nbsp;&nbsp;• Modes: 'explore', 'gather', 'dig', 'hunt', 'idle'</li>
       <li><strong>Crafting System (16 recipes!):</strong></li>
       <li>&nbsp;&nbsp;• Select Diamond tool (press 4) then use at workbench (Shift+Dir or E)</li>
       <li>&nbsp;&nbsp;• Press 1-9 to select recipe, 0 to cancel</li>
@@ -198,7 +204,7 @@ Weather: <span id="weather"></span></div>
       <li>&nbsp;&nbsp;• Tools augment abilities (Axe=chop trees, Pickaxe=mine ore)</li>
       <li>&nbsp;&nbsp;• Press I to view collected items</li>
       <li>&nbsp;&nbsp;• Multiple tools stack - best bonus applies</li>
-      <li><strong>Other:</strong> V=Toggle visibility, Q=Reload, H/K=Toggle help</li>
+      <li><strong>Other:</strong> V=Toggle visibility, Q=Reload, H/K=Toggle help, ;=Debug actors</li>
     </ul>
     <p style="text-align:center;color:var(--muted);margin-top:20px">Press H or K to close</p>
   </div>
@@ -804,6 +810,343 @@ function dumpActors(){
 // - Multi-action frames: Allow multiple actions per actor per tick based on speed
 // - Tactical battle instancing: Create separate actorCore for battle encounters
 // - Save/load persistence: Serialize actorCore when multi-actor system is established
+
+// ========== AI DRIVER (Autonomous Player Control) ==========
+// AI driver for autonomous player movement and actions
+// Enables gameplay simulation and automated testing
+
+const aiDriver = {
+  enabled: false,
+  mode: 'explore', // 'explore', 'gather', 'dig', 'hunt', 'idle'
+  tickInterval: null,
+  tickDelay: 500, // ms between actions
+  targetPos: null,
+  memory: {
+    visitedTiles: new Set(),
+    interestingItems: [],
+    blockedDirections: new Set()
+  },
+  stats: {
+    moveCount: 0,
+    itemsCollected: 0,
+    tilesExplored: 0,
+    actionsPerformed: 0
+  }
+};
+
+function startAI(mode = 'explore', speed = 500){
+  // Start autonomous AI control
+  if(aiDriver.enabled){
+    log('[AI] Already running. Stop first.');
+    return;
+  }
+  
+  aiDriver.enabled = true;
+  aiDriver.mode = mode;
+  aiDriver.tickDelay = speed;
+  aiDriver.memory.visitedTiles.clear();
+  aiDriver.stats = {moveCount: 0, itemsCollected: 0, tilesExplored: 0, actionsPerformed: 0};
+  
+  log(`[AI] Started in ${mode} mode (${speed}ms tick)`);
+  console.log('[AI] Autonomous control activated');
+  
+  // Start the AI tick loop
+  aiDriver.tickInterval = setInterval(aiTick, aiDriver.tickDelay);
+}
+
+function stopAI(){
+  // Stop autonomous AI control
+  if(!aiDriver.enabled){
+    log('[AI] Not running.');
+    return;
+  }
+  
+  aiDriver.enabled = false;
+  if(aiDriver.tickInterval){
+    clearInterval(aiDriver.tickInterval);
+    aiDriver.tickInterval = null;
+  }
+  
+  log(`[AI] Stopped. Stats: ${aiDriver.stats.moveCount} moves, ${aiDriver.stats.itemsCollected} items, ${aiDriver.stats.tilesExplored} tiles explored`);
+  console.log('[AI] Autonomous control deactivated', aiDriver.stats);
+}
+
+function aiTick(){
+  // Main AI decision loop - called each tick
+  if(!aiDriver.enabled || !state.playerId) return;
+  
+  const actor = state.actorCore.actors[state.playerId];
+  if(!actor) return;
+  
+  // Mark current tile as visited
+  const tileKey = `${actor.x},${actor.y}`;
+  if(!aiDriver.memory.visitedTiles.has(tileKey)){
+    aiDriver.memory.visitedTiles.add(tileKey);
+    aiDriver.stats.tilesExplored++;
+  }
+  
+  // Check for items at current position
+  const itemHere = state.items.find(i => i.x === actor.x && i.y === actor.y);
+  if(itemHere){
+    pickup();
+    aiDriver.stats.itemsCollected++;
+    aiDriver.stats.actionsPerformed++;
+    return;
+  }
+  
+  // Mode-specific behavior
+  if(aiDriver.mode === 'explore'){
+    aiExplore(actor);
+  } else if(aiDriver.mode === 'gather'){
+    aiGather(actor);
+  } else if(aiDriver.mode === 'dig'){
+    aiDig(actor);
+  } else if(aiDriver.mode === 'hunt'){
+    aiHunt(actor);
+  } else if(aiDriver.mode === 'idle'){
+    // Do nothing, just observe occasionally
+    if(rf() < 0.1){
+      requestPlayerObserve();
+      aiDriver.stats.actionsPerformed++;
+    }
+  }
+}
+
+function aiExplore(actor){
+  // Exploration strategy: move to unvisited tiles, prefer items
+  
+  // Look for nearby items to collect
+  const nearbyItems = state.items.filter(item => {
+    const dist = Math.abs(item.x - actor.x) + Math.abs(item.y - actor.y);
+    return dist <= 5 && dist > 0;
+  });
+  
+  if(nearbyItems.length > 0){
+    // Move toward nearest item
+    const target = nearbyItems[0];
+    const dx = Math.sign(target.x - actor.x);
+    const dy = Math.sign(target.y - actor.y);
+    
+    // Try primary direction first
+    if(dx !== 0 && tryAIMove(dx, 0, actor)){
+      return;
+    }
+    if(dy !== 0 && tryAIMove(0, dy, actor)){
+      return;
+    }
+  }
+  
+  // Otherwise, explore unvisited tiles
+  const directions = [
+    {dx: 1, dy: 0},
+    {dx: -1, dy: 0},
+    {dx: 0, dy: 1},
+    {dx: 0, dy: -1}
+  ];
+  
+  // Shuffle directions for variety
+  for(let i = directions.length - 1; i > 0; i--){
+    const j = Math.floor(rf() * (i + 1));
+    [directions[i], directions[j]] = [directions[j], directions[i]];
+  }
+  
+  // Try unvisited directions first
+  for(const {dx, dy} of directions){
+    const nx = actor.x + dx;
+    const ny = actor.y + dy;
+    const tileKey = `${nx},${ny}`;
+    
+    if(!aiDriver.memory.visitedTiles.has(tileKey)){
+      if(tryAIMove(dx, dy, actor)){
+        return;
+      }
+    }
+  }
+  
+  // If all nearby tiles visited, try any valid move
+  for(const {dx, dy} of directions){
+    if(tryAIMove(dx, dy, actor)){
+      return;
+    }
+  }
+  
+  // Stuck - rest or wait
+  if(actor.hp < actor.hpMax){
+    requestPlayerRest();
+  } else {
+    requestPlayerWait();
+  }
+  aiDriver.stats.actionsPerformed++;
+}
+
+function aiGather(actor){
+  // Gathering strategy: prioritize resource collection
+  
+  // Find nearest item
+  let nearestItem = null;
+  let nearestDist = Infinity;
+  
+  for(const item of state.items){
+    const dist = Math.abs(item.x - actor.x) + Math.abs(item.y - actor.y);
+    if(dist < nearestDist){
+      nearestDist = dist;
+      nearestItem = item;
+    }
+  }
+  
+  if(nearestItem && nearestDist > 0){
+    // Move toward item
+    const dx = Math.sign(nearestItem.x - actor.x);
+    const dy = Math.sign(nearestItem.y - actor.y);
+    
+    if(Math.abs(nearestItem.x - actor.x) > 0 && tryAIMove(dx, 0, actor)){
+      return;
+    }
+    if(Math.abs(nearestItem.y - actor.y) > 0 && tryAIMove(0, dy, actor)){
+      return;
+    }
+  }
+  
+  // No items or stuck - explore
+  aiExplore(actor);
+}
+
+function aiDig(actor){
+  // Digging strategy: clear obstacles and mine resources
+  
+  // Look for diggable tiles nearby
+  const directions = [
+    {dx: 1, dy: 0},
+    {dx: -1, dy: 0},
+    {dx: 0, dy: 1},
+    {dx: 0, dy: -1}
+  ];
+  
+  for(const {dx, dy} of directions){
+    const tx = actor.x + dx;
+    const ty = actor.y + dy;
+    
+    if(inBounds(tx, ty)){
+      const tile = state.map[ty][tx];
+      
+      // Dig soft tiles, rubble, or walls
+      if(tile === TILES.SOFT || tile === TILES.RUBBLE || (tile === TILES.WALL && state.inventory.some(i=>i.type==='spade'))){
+        state.activeTool = 1; // Spade
+        requestPlayerDig(tx, ty);
+        aiDriver.stats.actionsPerformed++;
+        return;
+      }
+    }
+  }
+  
+  // No digging targets - explore
+  aiExplore(actor);
+}
+
+function aiHunt(actor){
+  // Hunting strategy: find and attack entities
+  
+  if(state.entities.length === 0){
+    // No entities - explore instead
+    aiExplore(actor);
+    return;
+  }
+  
+  // Find nearest entity
+  let nearestEnt = null;
+  let nearestDist = Infinity;
+  
+  for(const ent of state.entities){
+    const dist = Math.abs(ent.x - actor.x) + Math.abs(ent.y - actor.y);
+    if(dist < nearestDist){
+      nearestDist = dist;
+      nearestEnt = ent;
+    }
+  }
+  
+  if(nearestEnt){
+    // If adjacent, attack
+    if(nearestDist === 1){
+      state.activeTool = 2; // Club
+      requestPlayerAttack(nearestEnt.x, nearestEnt.y);
+      aiDriver.stats.actionsPerformed++;
+      return;
+    }
+    
+    // Move toward entity
+    const dx = Math.sign(nearestEnt.x - actor.x);
+    const dy = Math.sign(nearestEnt.y - actor.y);
+    
+    if(Math.abs(nearestEnt.x - actor.x) > 0 && tryAIMove(dx, 0, actor)){
+      return;
+    }
+    if(Math.abs(nearestEnt.y - actor.y) > 0 && tryAIMove(0, dy, actor)){
+      return;
+    }
+  }
+  
+  // Can't reach entity - explore
+  aiExplore(actor);
+}
+
+function tryAIMove(dx, dy, actor){
+  // Attempt to move in direction, return true if successful
+  const nx = actor.x + dx;
+  const ny = actor.y + dy;
+  
+  if(!inBounds(nx, ny)) return false;
+  
+  const tile = state.map[ny][nx];
+  if(!tile.walk) return false;
+  
+  if(state.entities.find(e => e.x === nx && e.y === ny)) return false;
+  
+  // Valid move
+  requestPlayerMove(dx, dy);
+  aiDriver.stats.moveCount++;
+  aiDriver.stats.actionsPerformed++;
+  return true;
+}
+
+function aiSetMode(mode){
+  // Change AI behavior mode
+  if(!aiDriver.enabled){
+    log('[AI] Not running. Start AI first.');
+    return;
+  }
+  
+  aiDriver.mode = mode;
+  log(`[AI] Mode changed to: ${mode}`);
+  console.log('[AI] Mode:', mode);
+}
+
+function aiSetSpeed(speed){
+  // Change AI tick speed
+  if(!aiDriver.enabled){
+    log('[AI] Not running. Start AI first.');
+    return;
+  }
+  
+  aiDriver.tickDelay = speed;
+  
+  // Restart interval with new speed
+  if(aiDriver.tickInterval){
+    clearInterval(aiDriver.tickInterval);
+    aiDriver.tickInterval = setInterval(aiTick, aiDriver.tickDelay);
+  }
+  
+  log(`[AI] Speed changed to: ${speed}ms`);
+}
+
+function aiStats(){
+  // Display AI statistics
+  console.log('[AI] Statistics:', aiDriver.stats);
+  console.log('[AI] Memory:', {
+    visitedTiles: aiDriver.memory.visitedTiles.size,
+    interestingItems: aiDriver.memory.interestingItems.length
+  });
+  log(`[AI] Stats - Moves: ${aiDriver.stats.moveCount}, Items: ${aiDriver.stats.itemsCollected}, Explored: ${aiDriver.stats.tilesExplored}, Actions: ${aiDriver.stats.actionsPerformed}`);
+}
 
 // ========== REGION SETUP ==========
 function loadForestWithTemple(){
@@ -2023,6 +2366,9 @@ addEventListener('keydown', (e)=>{
   else if(k==='q'||k==='Q') location.reload();
   else if(k==='l'||k==='L') teleportToLab();
   else if(k===';') dumpActors(); // Debug: dump actor registry
+  // AI Driver controls
+  else if(k==='[') { if(aiDriver.enabled) stopAI(); else startAI('explore', 500); } // Toggle AI
+  else if(k===']') aiStats(); // Show AI stats
   else if(k==='?') log('Press H or K for detailed help.');
 });
 
