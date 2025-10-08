@@ -188,6 +188,12 @@ Weather: <span id="weather"></span></div>
       <li>&nbsp;&nbsp;• <strong>4=♦Diamond</strong> - Craft at workbench (choose recipes!)</li>
       <li><strong>Use Tool:</strong> Shift+Direction or E (facing dir)</li>
       <li><strong>Actions:</strong> G=Pick up, P=Place torch, R=Rest, O=Observe, .=Wait, I=Inventory, L=Teleport to Lab</li>
+      <li><strong>AI Driver (Autonomous Play):</strong></li>
+      <li>&nbsp;&nbsp;• <strong>[</strong> = Toggle AI on/off (starts in explore mode)</li>
+      <li>&nbsp;&nbsp;• <strong>]</strong> = Show AI statistics</li>
+      <li>&nbsp;&nbsp;• AI explores, gathers items, and interacts with the world automatically</li>
+      <li>&nbsp;&nbsp;• Console commands: startAI('mode', speed), stopAI(), aiSetMode('mode'), aiStats()</li>
+      <li>&nbsp;&nbsp;• Modes: 'explore', 'gather', 'dig', 'hunt', 'idle'</li>
       <li><strong>Crafting System (16 recipes!):</strong></li>
       <li>&nbsp;&nbsp;• Select Diamond tool (press 4) then use at workbench (Shift+Dir or E)</li>
       <li>&nbsp;&nbsp;• Press 1-9 to select recipe, 0 to cancel</li>
@@ -198,7 +204,7 @@ Weather: <span id="weather"></span></div>
       <li>&nbsp;&nbsp;• Tools augment abilities (Axe=chop trees, Pickaxe=mine ore)</li>
       <li>&nbsp;&nbsp;• Press I to view collected items</li>
       <li>&nbsp;&nbsp;• Multiple tools stack - best bonus applies</li>
-      <li><strong>Other:</strong> V=Toggle visibility, Q=Reload, H/K=Toggle help</li>
+      <li><strong>Other:</strong> V=Toggle visibility, Q=Reload, H/K=Toggle help, ;=Debug actors</li>
     </ul>
     <p style="text-align:center;color:var(--muted);margin-top:20px">Press H or K to close</p>
   </div>
@@ -349,6 +355,798 @@ let _seed=1;
 function srand(s){ _seed=s%2147483647; if(_seed<=0) _seed+=2147483646; }
 function rand(){ return _seed = _seed*16807 % 2147483647; }
 function rf(){ return (rand()-1)/2147483646; }
+
+// ========== ACTOR CORE (Phase 0 + Phase 2) ==========
+// Generic actor + action system to support future:
+// - Multi-party control (player companions, squad tactics)
+// - Autonomous NPC behaviors (scheduled actions, AI initiative)
+// - Time dilation & queued simulation (DF-style world ticks)
+// - Replay, network sync, tactical battle instances
+//
+// Phase 0 (complete): Minimal structure + player movement migration
+// Phase 1 (future): Migrate state.entities into actors with AI action injection
+// Phase 2 (complete): Tool actions (dig/attack/rest/focus/wait/observe) through action queue
+// Phase 3 (future): Initiative ordering based on speed stats + batched frames
+// Phase 4 (future): Tactical battle instances reuse Actor schema for party+enemy squads
+
+// Actor Core registry - initialized after state setup
+// Will be set in init(): state.actorCore = { actors:{}, order:[], nextId:1, actionQueue:[] }
+
+function createActor(spec){
+  // Creates a new actor with stats, meta, and memory
+  // spec: {id, type, x, y, hp, hpMax, str, int, agi, stamina, stamMax, facing, ...}
+  // Returns actor object with standardized structure
+  const actor = {
+    id: spec.id,
+    type: spec.type || 'generic',
+    
+    // Position
+    x: spec.x || 0,
+    y: spec.y || 0,
+    
+    // Stats
+    hp: spec.hp || 10,
+    hpMax: spec.hpMax || 10,
+    str: spec.str || 5,
+    int: spec.int || 5,
+    agi: spec.agi || 5,
+    stamina: spec.stamina || 10,
+    stamMax: spec.stamMax || 10,
+    
+    // Metadata
+    facing: spec.facing || {dx:0, dy:1},
+    
+    // Future: AI state, memory, schedule, cooldowns
+    memory: spec.memory || {},
+    
+    // Copy any additional properties
+    ...spec
+  };
+  
+  return actor;
+}
+
+function queueAction(actorId, action){
+  // Enqueue an action for processing on next tick
+  // action: {type, params}
+  if(!state.actorCore) return;
+  
+  state.actorCore.actionQueue.push({
+    actorId: actorId,
+    action: action
+  });
+}
+
+function processActions(){
+  // Process all queued actions at start of worldTick
+  // Future: Sort by initiative/speed before processing
+  if(!state.actorCore) return;
+  
+  const queue = state.actorCore.actionQueue;
+  state.actorCore.actionQueue = []; // Clear queue
+  
+  for(const entry of queue){
+    performAction(entry);
+  }
+}
+
+function performAction(entry){
+  // Generic action dispatcher
+  // entry: {actorId, action:{type, params}}
+  const {actorId, action} = entry;
+  const actor = state.actorCore.actors[actorId];
+  
+  if(!actor){
+    console.warn(`[ActorCore] Actor ${actorId} not found`);
+    return;
+  }
+  
+  // Dispatch based on action type
+  if(action.type === 'move'){
+    performMove(actor, action);
+  }
+  // Phase 2: Tool actions through queue system
+  else if(action.type === 'dig') performDig(actor, action);
+  else if(action.type === 'attack') performAttack(actor, action);
+  else if(action.type === 'rest') performRest(actor, action);
+  else if(action.type === 'focus') performFocus(actor, action);
+  else if(action.type === 'wait') performWait(actor, action);
+  else if(action.type === 'observe') performObserve(actor, action);
+  // Future action types (commented placeholders):
+  // else if(action.type === 'craft') performCraft(actor, action);
+  // else if(action.type === 'pickup') performPickup(actor, action);
+  else {
+    console.warn(`[ActorCore] Unknown action type: ${action.type}`);
+  }
+}
+
+function performMove(actor, action){
+  // Execute movement action with bounds, collision, walkable checks
+  // action.params: {dx, dy}
+  const {dx, dy} = action.params;
+  const nx = actor.x + dx;
+  const ny = actor.y + dy;
+  
+  // Bounds check
+  if(!inBounds(nx, ny)) return;
+  
+  // Update facing
+  actor.facing = {dx, dy};
+  
+  // Walkable tile check
+  const tile = state.map[ny][nx];
+  if(!tile.walk){
+    if(tile === TILES.DOOR){
+      log('The door is locked.');
+    } else {
+      log('Blocked.');
+    }
+    return;
+  }
+  
+  // Entity collision check
+  if(state.entities.find(e => e.x === nx && e.y === ny)){
+    log('Something is in the way.');
+    return;
+  }
+  
+  // Perform movement
+  actor.x = nx;
+  actor.y = ny;
+  
+  // Micro stat gain (agility from movement)
+  actor.agi = Math.round((actor.agi + 0.01) * 100) / 100;
+  
+  // Future: Stamina cost injection, terrain effects, trigger events
+}
+
+function performDig(actor, action){
+  // Execute dig action (spade tool)
+  // action.params: {x, y}
+  const {x, y} = action.params;
+  
+  if(!inBounds(x, y)) return;
+  
+  const tile = state.map[y][x];
+  const tools = state.inventory.filter(i=>i.type==='spade');
+  const bestTool = tools.reduce((best, curr) => (curr.bonus > (best?.bonus||0) ? curr : best), null);
+  const tool = bestTool ? bestTool.name : 'hands';
+  const bonus = bestTool ? bestTool.bonus : 0;
+  const hasMining = tools.some(t=>t.special==='mining');
+  
+  // Check stamina for actions that require it
+  const staminaCost = (tile===TILES.SOFT || tile===TILES.WALL) ? 2 : 1;
+  
+  if(tile===TILES.SOFT){
+    if(actor.stamina < staminaCost){
+      log('<span class="warnMsg">Not enough stamina to dig!</span>');
+      return;
+    }
+    actor.stamina -= staminaCost;
+    state.map[y][x]=TILES.FLOOR;
+    log(`<span class="unlockMsg">You dig away the soft earth with ${tool}.</span>`);
+    if(!state.tutorial.didDig){
+      state.tutorial.didDig=true;
+      log('<span class="unlockMsg">✓ Tutorial: Learned to dig!</span>');
+    }
+  } else if(tile===TILES.RUBBLE){
+    if(actor.stamina < staminaCost){
+      log('<span class="warnMsg">Not enough stamina to clear rubble!</span>');
+      return;
+    }
+    actor.stamina -= staminaCost;
+    state.map[y][x]=TILES.FLOOR;
+    state.resources.scrap++;
+    log(`You clear rubble with ${tool}, gaining scrap.`);
+  } else if(tile===TILES.TREE && bestTool){
+    if(actor.stamina < staminaCost){
+      log('<span class="warnMsg">Not enough stamina to chop!</span>');
+      return;
+    }
+    actor.stamina -= staminaCost;
+    state.map[y][x]=TILES.FLOOR;
+    const woodGained = 2 + bonus;
+    state.resources.wood += woodGained;
+    log(`<span class="unlockMsg">You chop down the tree with ${tool} and collect ${woodGained} wood!</span>`);
+  } else if(tile===TILES.WALL && bestTool){
+    if(actor.stamina < staminaCost){
+      log('<span class="warnMsg">Not enough stamina to break the wall!</span>');
+      return;
+    }
+    actor.stamina -= staminaCost;
+    if(hasMining){
+      state.map[y][x]=TILES.RUBBLE;
+      const oreGained = 1 + Math.floor(bonus/2);
+      state.resources.ore += oreGained;
+      log(`<span class="unlockMsg">You mine the wall with ${tool}, extracting ${oreGained} ore!</span>`);
+      if(rf() < 0.20){
+        state.resources.coal++;
+        log('<span class="unlockMsg">You found coal in the wall!</span>');
+      }
+    } else {
+      state.map[y][x]=TILES.RUBBLE;
+      log(`You hack at the wall with ${tool}, creating rubble.`);
+      if(rf() < 0.20){
+        state.resources.coal++;
+        log('<span class="unlockMsg">You found coal in the wall!</span>');
+      }
+    }
+  } else {
+    log(bestTool ? 'Nothing to dig or chop here.' : 'Nothing to dig here with bare hands.');
+  }
+}
+
+function performAttack(actor, action){
+  // Execute attack action (club tool)
+  // action.params: {x, y}
+  const {x, y} = action.params;
+  
+  const ent = state.entities.find(e=>e.x===x&&e.y===y);
+  const weapon = state.inventory.find(i=>i.type==='club');
+  const tool = weapon ? weapon.name : 'fists';
+  const damage = actor.str + (weapon ? weapon.bonus : 0);
+  
+  if(ent){
+    ent.hp -= damage;
+    log(`You strike the ${ent.type} with ${tool} for ${damage} damage!`);
+    if(ent.hp<=0){
+      log(`<span class="unlockMsg">The ${ent.type} is defeated!</span>`);
+      state.entities = state.entities.filter(e=>e!==ent);
+      if(!state.tutorial.didStrike){
+        state.tutorial.didStrike=true;
+        log('<span class="unlockMsg">✓ Tutorial: Learned to strike!</span>');
+      }
+    }
+  } else {
+    log(`Nothing to strike there with ${tool}.`);
+  }
+}
+
+function performRest(actor, action){
+  // Execute rest action - recover HP
+  if(actor.hp < actor.hpMax){
+    actor.hp = Math.min(actor.hpMax, actor.hp + 1);
+    actor.int = Math.round((actor.int + 0.01) * 100) / 100;
+    log('You rest, recovering 1 HP.');
+  } else {
+    log('Already at full health.');
+  }
+}
+
+function performFocus(actor, action){
+  // Execute focus action (heart tool) - restore HP or stamina
+  if(actor.hp < actor.hpMax && actor.stamina >= 2){
+    actor.hp = Math.min(actor.hpMax, actor.hp + 1);
+    actor.stamina -= 2;
+    log('You focus, restoring 1 HP.');
+  } else if(actor.stamina < actor.stamMax){
+    actor.stamina = Math.min(actor.stamMax, actor.stamina + 3);
+    log('You breathe deeply, restoring stamina.');
+  } else {
+    log('You are already at full health and stamina.');
+  }
+  
+  if(!state.tutorial.didFocus){
+    state.tutorial.didFocus=true;
+    log('<span class="unlockMsg">✓ Tutorial: Learned Heart technique!</span>');
+  }
+}
+
+function performWait(actor, action){
+  // Execute wait action - do nothing, advance turn
+  log('You wait.');
+}
+
+function performObserve(actor, action){
+  // Execute observe action - gain int, no turn advance
+  actor.int = Math.round((actor.int + 0.02) * 100) / 100;
+  log('You observe your surroundings carefully.');
+}
+
+function initActorSystemPlayer(){
+  // Initialize player as actor, binding to existing state.player
+  if(!state.actorCore){
+    state.actorCore = {
+      actors: {},
+      order: [],
+      nextId: 1,
+      actionQueue: []
+    };
+  }
+  
+  const playerId = state.actorCore.nextId++;
+  const playerActor = createActor({
+    id: playerId,
+    type: 'player',
+    x: state.player.x,
+    y: state.player.y,
+    hp: state.player.hp,
+    hpMax: state.player.hpMax,
+    str: state.player.str,
+    int: state.player.int,
+    agi: state.player.agi,
+    stamina: state.player.stamina,
+    stamMax: state.player.stamMax,
+    facing: state.player.facing
+  });
+  
+  state.actorCore.actors[playerId] = playerActor;
+  state.actorCore.order.push(playerId);
+  state.playerId = playerId;
+  
+  console.log('[ActorCore] Player bound to actor system.');
+}
+
+function syncPlayerFromActor(){
+  // Synchronize legacy state.player from actor for backward compatibility
+  // Keeps existing UI/render code working without changes
+  if(!state.playerId || !state.actorCore) return;
+  
+  const actor = state.actorCore.actors[state.playerId];
+  if(!actor) return;
+  
+  state.player.x = actor.x;
+  state.player.y = actor.y;
+  state.player.hp = actor.hp;
+  state.player.hpMax = actor.hpMax;
+  state.player.str = actor.str;
+  state.player.int = actor.int;
+  state.player.agi = actor.agi;
+  state.player.stamina = actor.stamina;
+  state.player.stamMax = actor.stamMax;
+  state.player.facing = actor.facing;
+}
+
+function requestPlayerMove(dx, dy){
+  // Queue player movement action and trigger world tick
+  // Replaces direct tryMove() calls in keyboard handler
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'move',
+    params: {dx, dy}
+  });
+  
+  worldTick();
+}
+
+function requestPlayerDig(x, y){
+  // Queue player dig action and trigger world tick
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'dig',
+    params: {x, y}
+  });
+  
+  worldTick();
+}
+
+function requestPlayerAttack(x, y){
+  // Queue player attack action and trigger world tick
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'attack',
+    params: {x, y}
+  });
+  
+  worldTick();
+}
+
+function requestPlayerRest(){
+  // Queue player rest action and trigger world tick
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'rest',
+    params: {}
+  });
+  
+  worldTick();
+}
+
+function requestPlayerFocus(){
+  // Queue player focus action and trigger world tick
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'focus',
+    params: {}
+  });
+  
+  worldTick();
+}
+
+function requestPlayerWait(){
+  // Queue player wait action and trigger world tick
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'wait',
+    params: {}
+  });
+  
+  worldTick();
+}
+
+function requestPlayerObserve(){
+  // Queue player observe action (no world tick - doesn't advance turn)
+  if(!state.playerId) return;
+  
+  queueAction(state.playerId, {
+    type: 'observe',
+    params: {}
+  });
+  
+  // Process immediately but don't advance turn
+  if(state.actorCore) {
+    processActions();
+    syncPlayerFromActor();
+  }
+  render();
+}
+
+function dumpActors(){
+  // Debug utility: log all actors and queued actions
+  if(!state.actorCore){
+    console.log('[ActorCore] Actor system not initialized');
+    return;
+  }
+  
+  console.log('[ActorCore] === ACTOR REGISTRY ===');
+  console.log('Actors:', state.actorCore.actors);
+  console.log('Order:', state.actorCore.order);
+  console.log('Queued Actions:', state.actorCore.actionQueue);
+  console.log('[ActorCore] ======================');
+  
+  log('Actor debug info logged to console (F12).');
+}
+
+// Extension paths (future phases):
+// - Initiative ordering: Sort actionQueue by actor speed/initiative before processing
+// - Stamina costs: Deduct stamina in performAction, block if insufficient
+// - Convert entities to actors: Migrate state.entities[] into actorCore with AI behaviors
+// - Multi-action frames: Allow multiple actions per actor per tick based on speed
+// - Tactical battle instancing: Create separate actorCore for battle encounters
+// - Save/load persistence: Serialize actorCore when multi-actor system is established
+
+// ========== AI DRIVER (Autonomous Player Control) ==========
+// AI driver for autonomous player movement and actions
+// Enables gameplay simulation and automated testing
+
+const aiDriver = {
+  enabled: false,
+  mode: 'explore', // 'explore', 'gather', 'dig', 'hunt', 'idle'
+  tickInterval: null,
+  tickDelay: 500, // ms between actions
+  targetPos: null,
+  memory: {
+    visitedTiles: new Set(),
+    interestingItems: [],
+    blockedDirections: new Set()
+  },
+  stats: {
+    moveCount: 0,
+    itemsCollected: 0,
+    tilesExplored: 0,
+    actionsPerformed: 0
+  }
+};
+
+function startAI(mode = 'explore', speed = 500){
+  // Start autonomous AI control
+  if(aiDriver.enabled){
+    log('[AI] Already running. Stop first.');
+    return;
+  }
+  
+  aiDriver.enabled = true;
+  aiDriver.mode = mode;
+  aiDriver.tickDelay = speed;
+  aiDriver.memory.visitedTiles.clear();
+  aiDriver.stats = {moveCount: 0, itemsCollected: 0, tilesExplored: 0, actionsPerformed: 0};
+  
+  log(`[AI] Started in ${mode} mode (${speed}ms tick)`);
+  console.log('[AI] Autonomous control activated');
+  
+  // Start the AI tick loop
+  aiDriver.tickInterval = setInterval(aiTick, aiDriver.tickDelay);
+}
+
+function stopAI(){
+  // Stop autonomous AI control
+  if(!aiDriver.enabled){
+    log('[AI] Not running.');
+    return;
+  }
+  
+  aiDriver.enabled = false;
+  if(aiDriver.tickInterval){
+    clearInterval(aiDriver.tickInterval);
+    aiDriver.tickInterval = null;
+  }
+  
+  log(`[AI] Stopped. Stats: ${aiDriver.stats.moveCount} moves, ${aiDriver.stats.itemsCollected} items, ${aiDriver.stats.tilesExplored} tiles explored`);
+  console.log('[AI] Autonomous control deactivated', aiDriver.stats);
+}
+
+function aiTick(){
+  // Main AI decision loop - called each tick
+  if(!aiDriver.enabled || !state.playerId) return;
+  
+  const actor = state.actorCore.actors[state.playerId];
+  if(!actor) return;
+  
+  // Mark current tile as visited
+  const tileKey = `${actor.x},${actor.y}`;
+  if(!aiDriver.memory.visitedTiles.has(tileKey)){
+    aiDriver.memory.visitedTiles.add(tileKey);
+    aiDriver.stats.tilesExplored++;
+  }
+  
+  // Check for items at current position
+  const itemHere = state.items.find(i => i.x === actor.x && i.y === actor.y);
+  if(itemHere){
+    pickup();
+    aiDriver.stats.itemsCollected++;
+    aiDriver.stats.actionsPerformed++;
+    return;
+  }
+  
+  // Mode-specific behavior
+  if(aiDriver.mode === 'explore'){
+    aiExplore(actor);
+  } else if(aiDriver.mode === 'gather'){
+    aiGather(actor);
+  } else if(aiDriver.mode === 'dig'){
+    aiDig(actor);
+  } else if(aiDriver.mode === 'hunt'){
+    aiHunt(actor);
+  } else if(aiDriver.mode === 'idle'){
+    // Do nothing, just observe occasionally
+    if(rf() < 0.1){
+      requestPlayerObserve();
+      aiDriver.stats.actionsPerformed++;
+    }
+  }
+}
+
+function aiExplore(actor){
+  // Exploration strategy: move to unvisited tiles, prefer items
+  
+  // Look for nearby items to collect
+  const nearbyItems = state.items.filter(item => {
+    const dist = Math.abs(item.x - actor.x) + Math.abs(item.y - actor.y);
+    return dist <= 5 && dist > 0;
+  });
+  
+  if(nearbyItems.length > 0){
+    // Move toward nearest item
+    const target = nearbyItems[0];
+    const dx = Math.sign(target.x - actor.x);
+    const dy = Math.sign(target.y - actor.y);
+    
+    // Try primary direction first
+    if(dx !== 0 && tryAIMove(dx, 0, actor)){
+      return;
+    }
+    if(dy !== 0 && tryAIMove(0, dy, actor)){
+      return;
+    }
+  }
+  
+  // Otherwise, explore unvisited tiles
+  const directions = [
+    {dx: 1, dy: 0},
+    {dx: -1, dy: 0},
+    {dx: 0, dy: 1},
+    {dx: 0, dy: -1}
+  ];
+  
+  // Shuffle directions for variety
+  for(let i = directions.length - 1; i > 0; i--){
+    const j = Math.floor(rf() * (i + 1));
+    [directions[i], directions[j]] = [directions[j], directions[i]];
+  }
+  
+  // Try unvisited directions first
+  for(const {dx, dy} of directions){
+    const nx = actor.x + dx;
+    const ny = actor.y + dy;
+    const tileKey = `${nx},${ny}`;
+    
+    if(!aiDriver.memory.visitedTiles.has(tileKey)){
+      if(tryAIMove(dx, dy, actor)){
+        return;
+      }
+    }
+  }
+  
+  // If all nearby tiles visited, try any valid move
+  for(const {dx, dy} of directions){
+    if(tryAIMove(dx, dy, actor)){
+      return;
+    }
+  }
+  
+  // Stuck - rest or wait
+  if(actor.hp < actor.hpMax){
+    requestPlayerRest();
+  } else {
+    requestPlayerWait();
+  }
+  aiDriver.stats.actionsPerformed++;
+}
+
+function aiGather(actor){
+  // Gathering strategy: prioritize resource collection
+  
+  // Find nearest item
+  let nearestItem = null;
+  let nearestDist = Infinity;
+  
+  for(const item of state.items){
+    const dist = Math.abs(item.x - actor.x) + Math.abs(item.y - actor.y);
+    if(dist < nearestDist){
+      nearestDist = dist;
+      nearestItem = item;
+    }
+  }
+  
+  if(nearestItem && nearestDist > 0){
+    // Move toward item
+    const dx = Math.sign(nearestItem.x - actor.x);
+    const dy = Math.sign(nearestItem.y - actor.y);
+    
+    if(Math.abs(nearestItem.x - actor.x) > 0 && tryAIMove(dx, 0, actor)){
+      return;
+    }
+    if(Math.abs(nearestItem.y - actor.y) > 0 && tryAIMove(0, dy, actor)){
+      return;
+    }
+  }
+  
+  // No items or stuck - explore
+  aiExplore(actor);
+}
+
+function aiDig(actor){
+  // Digging strategy: clear obstacles and mine resources
+  
+  // Look for diggable tiles nearby
+  const directions = [
+    {dx: 1, dy: 0},
+    {dx: -1, dy: 0},
+    {dx: 0, dy: 1},
+    {dx: 0, dy: -1}
+  ];
+  
+  for(const {dx, dy} of directions){
+    const tx = actor.x + dx;
+    const ty = actor.y + dy;
+    
+    if(inBounds(tx, ty)){
+      const tile = state.map[ty][tx];
+      
+      // Dig soft tiles, rubble, or walls
+      if(tile === TILES.SOFT || tile === TILES.RUBBLE || (tile === TILES.WALL && state.inventory.some(i=>i.type==='spade'))){
+        state.activeTool = 1; // Spade
+        requestPlayerDig(tx, ty);
+        aiDriver.stats.actionsPerformed++;
+        return;
+      }
+    }
+  }
+  
+  // No digging targets - explore
+  aiExplore(actor);
+}
+
+function aiHunt(actor){
+  // Hunting strategy: find and attack entities
+  
+  if(state.entities.length === 0){
+    // No entities - explore instead
+    aiExplore(actor);
+    return;
+  }
+  
+  // Find nearest entity
+  let nearestEnt = null;
+  let nearestDist = Infinity;
+  
+  for(const ent of state.entities){
+    const dist = Math.abs(ent.x - actor.x) + Math.abs(ent.y - actor.y);
+    if(dist < nearestDist){
+      nearestDist = dist;
+      nearestEnt = ent;
+    }
+  }
+  
+  if(nearestEnt){
+    // If adjacent, attack
+    if(nearestDist === 1){
+      state.activeTool = 2; // Club
+      requestPlayerAttack(nearestEnt.x, nearestEnt.y);
+      aiDriver.stats.actionsPerformed++;
+      return;
+    }
+    
+    // Move toward entity
+    const dx = Math.sign(nearestEnt.x - actor.x);
+    const dy = Math.sign(nearestEnt.y - actor.y);
+    
+    if(Math.abs(nearestEnt.x - actor.x) > 0 && tryAIMove(dx, 0, actor)){
+      return;
+    }
+    if(Math.abs(nearestEnt.y - actor.y) > 0 && tryAIMove(0, dy, actor)){
+      return;
+    }
+  }
+  
+  // Can't reach entity - explore
+  aiExplore(actor);
+}
+
+function tryAIMove(dx, dy, actor){
+  // Attempt to move in direction, return true if successful
+  const nx = actor.x + dx;
+  const ny = actor.y + dy;
+  
+  if(!inBounds(nx, ny)) return false;
+  
+  const tile = state.map[ny][nx];
+  if(!tile.walk) return false;
+  
+  if(state.entities.find(e => e.x === nx && e.y === ny)) return false;
+  
+  // Valid move
+  requestPlayerMove(dx, dy);
+  aiDriver.stats.moveCount++;
+  aiDriver.stats.actionsPerformed++;
+  return true;
+}
+
+function aiSetMode(mode){
+  // Change AI behavior mode
+  if(!aiDriver.enabled){
+    log('[AI] Not running. Start AI first.');
+    return;
+  }
+  
+  aiDriver.mode = mode;
+  log(`[AI] Mode changed to: ${mode}`);
+  console.log('[AI] Mode:', mode);
+}
+
+function aiSetSpeed(speed){
+  // Change AI tick speed
+  if(!aiDriver.enabled){
+    log('[AI] Not running. Start AI first.');
+    return;
+  }
+  
+  aiDriver.tickDelay = speed;
+  
+  // Restart interval with new speed
+  if(aiDriver.tickInterval){
+    clearInterval(aiDriver.tickInterval);
+    aiDriver.tickInterval = setInterval(aiTick, aiDriver.tickDelay);
+  }
+  
+  log(`[AI] Speed changed to: ${speed}ms`);
+}
+
+function aiStats(){
+  // Display AI statistics
+  console.log('[AI] Statistics:', aiDriver.stats);
+  console.log('[AI] Memory:', {
+    visitedTiles: aiDriver.memory.visitedTiles.size,
+    interestingItems: aiDriver.memory.interestingItems.length
+  });
+  log(`[AI] Stats - Moves: ${aiDriver.stats.moveCount}, Items: ${aiDriver.stats.itemsCollected}, Explored: ${aiDriver.stats.tilesExplored}, Actions: ${aiDriver.stats.actionsPerformed}`);
+}
 
 // ========== REGION SETUP ==========
 function loadForestWithTemple(){
@@ -595,14 +1393,17 @@ function useTool(dx, dy){
   const tx = state.player.x+dx, ty = state.player.y+dy;
   if(!inBounds(tx,ty)) return;
   
+  // Update facing
+  if(state.actorCore && state.playerId){
+    state.actorCore.actors[state.playerId].facing = {dx, dy};
+  }
   state.player.facing = {dx,dy};
   
-  if(state.activeTool===1) useSpade(tx,ty);
-  else if(state.activeTool===2) useClub(tx,ty);
-  else if(state.activeTool===3) useHeart();
-  else if(state.activeTool===4) useDiamond(tx,ty);
-  
-  worldTick();
+  // Route through action queue system (Phase 2)
+  if(state.activeTool===1) requestPlayerDig(tx,ty);
+  else if(state.activeTool===2) requestPlayerAttack(tx,ty);
+  else if(state.activeTool===3) requestPlayerFocus();
+  else if(state.activeTool===4) useDiamond(tx,ty); // Keep Diamond (craft) direct for now
 }
 
 function useSpade(x,y){
@@ -1014,6 +1815,12 @@ function inBounds(x,y){ return x>=0&&y>=0&&x<state.region.width&&y<state.region.
 
 // ========== WORLD SIMULATION ==========
 function worldTick(){
+  // Process actor actions first (Phase 0: player movement)
+  if(state.actorCore) {
+    processActions();
+    syncPlayerFromActor(); // Keep legacy state.player in sync for UI/render
+  }
+  
   state.turns++;
   
   // Forest simulation (always active now)
@@ -1529,16 +2336,16 @@ addEventListener('keydown', (e)=>{
   
   // Movement with Shift = tool use
   if(['ArrowUp','w','W'].includes(k)){
-    if(e.shiftKey) useTool(0,-1); else tryMove(0,-1);
+    if(e.shiftKey) useTool(0,-1); else requestPlayerMove(0,-1);
     e.preventDefault();
   } else if(['ArrowDown','s','S'].includes(k)){
-    if(e.shiftKey) useTool(0,1); else tryMove(0,1);
+    if(e.shiftKey) useTool(0,1); else requestPlayerMove(0,1);
     e.preventDefault();
   } else if(['ArrowLeft','a','A'].includes(k)){
-    if(e.shiftKey) useTool(-1,0); else tryMove(-1,0);
+    if(e.shiftKey) useTool(-1,0); else requestPlayerMove(-1,0);
     e.preventDefault();
   } else if(['ArrowRight','d','D'].includes(k)){
-    if(e.shiftKey) useTool(1,0); else tryMove(1,0);
+    if(e.shiftKey) useTool(1,0); else requestPlayerMove(1,0);
     e.preventDefault();
   }
   // Tool selection
@@ -1550,14 +2357,18 @@ addEventListener('keydown', (e)=>{
   else if(k==='e'||k==='E') useTool(state.player.facing.dx, state.player.facing.dy);
   else if(k==='g'||k==='G') pickup();
   else if(k==='p'||k==='P') placeTorch();
-  else if(k==='.') wait();
-  else if(k==='r'||k==='R') rest();
-  else if(k==='o'||k==='O') observe();
+  else if(k==='.') requestPlayerWait();
+  else if(k==='r'||k==='R') requestPlayerRest();
+  else if(k==='o'||k==='O') requestPlayerObserve();
   else if(k==='i'||k==='I') { showInventory(); }
   else if(k==='v'||k==='V') { state.visibilityOn=!state.visibilityOn; log('Visibility '+(state.visibilityOn?'ON':'OFF')); render(); }
   else if(k==='h'||k==='H'||k==='k'||k==='K') toggleHelp();
   else if(k==='q'||k==='Q') location.reload();
   else if(k==='l'||k==='L') teleportToLab();
+  else if(k===';') dumpActors(); // Debug: dump actor registry
+  // AI Driver controls
+  else if(k==='[') { if(aiDriver.enabled) stopAI(); else startAI('explore', 500); } // Toggle AI
+  else if(k===']') aiStats(); // Show AI stats
   else if(k==='?') log('Press H or K for detailed help.');
 });
 
@@ -1648,6 +2459,10 @@ const audioSystem = {
   state.map = loadForestWithTemple();
   log('Welcome to the Origin Temple. The forest surrounds you. Dig through the walls to escape!');
   state.seen.add(state.player.y*10000+state.player.x);
+  
+  // Initialize actor system and bind player
+  initActorSystemPlayer();
+  
   updateCamera();
   render();
   view.focus();
