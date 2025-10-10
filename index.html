@@ -105,7 +105,7 @@
 
       <aside id="hud" class="mono">
         <div class="panel">[ VITALS ]
-HP: <span id="hp"></span>/<span id="hpMax"></span>  Stam: <span id="stam"></span>/<span id="stamMax"></span>
+HP: <span id="hp"></span>/<span id="hpMax"></span>  Stam: <span id="stam"></span>/<span id="stamMax"></span>  Hunger: <span id="hunger"></span>/<span id="hungerMax"></span>
 STR:<span id="str"></span>  INT:<span id="int"></span>  AGI:<span id="agi"></span></div>
         
         <div class="panel">[ TOOLS ]
@@ -134,7 +134,7 @@ Depth: <span id="depth">Z=0</span></div>
 
         <div class="panel dim">[ CONTROLS ]
 <kbd>H</kbd>/<kbd>K</kbd> Help · <kbd>I</kbd> Inventory
-<kbd>G</kbd> Pick up · <kbd>P</kbd> Place torch
+<kbd>G</kbd> Pick up · <kbd>F</kbd> Eat · <kbd>P</kbd> Place torch
 <kbd>R</kbd> Rest · <kbd>O</kbd> Observe · <kbd>V</kbd> Vis toggle
 <kbd>L</kbd> Secret Lab</div>
       </aside>
@@ -282,6 +282,7 @@ const RECIPES = {
   keyAlt: {name:'Key (alt)', inputs:{herb:1, scrap:1}, outputs:{key:1}, desc:'Unlocks doors'},
   axe: {name:'Iron Axe', inputs:{wood:2, ore:1}, outputs:{inventory:1}, desc:'Augments Spade (+1)', makeItem:()=>({name:'Iron Axe', type:'spade', bonus:1})},
   torch: {name:'Torch', inputs:{wood:1, coal:1}, outputs:{torch:1}, desc:'Placeable light source (+3 radius)', placeableLight:true},
+  cookedMeat: {name:'Cooked Meat', inputs:{meat:1, coal:1}, outputs:{cookedMeat:1}, desc:'Restores hunger & stamina'},
   
   // Intermediate Recipes (unlock after first craft)
   hammer: {name:'Heavy Hammer', inputs:{wood:1, ore:2}, outputs:{inventory:1}, desc:'Augments Club (+2)', makeItem:()=>({name:'Heavy Hammer', type:'club', bonus:2})},
@@ -329,7 +330,12 @@ const RESOURCE_INFO = {
   // Cave resources
   glowshroom: {name:'Glowshroom', tier:'basic', desc:'Glowing fungus', glyph:';', color:'#9c9'},
   limestone: {name:'Limestone', tier:'refined', desc:'Cave stone', glyph:'○', color:'#bbb'},
-  deepore: {name:'Deep Ore', tier:'rare', desc:'Rich ore vein', glyph:'*', color:'#fc0'}
+  deepore: {name:'Deep Ore', tier:'rare', desc:'Rich ore vein', glyph:'*', color:'#fc0'},
+  
+  // Food resources
+  berry: {name:'Berry', tier:'basic', desc:'Wild berries', glyph:'●', color:'#d46'},
+  meat: {name:'Raw Meat', tier:'basic', desc:'Uncooked meat', glyph:'⚇', color:'#b44'},
+  cookedMeat: {name:'Cooked Meat', tier:'refined', desc:'Nourishing meal', glyph:'⚈', color:'#b86'}
 };
 
 // ========== STATE ==========
@@ -340,11 +346,11 @@ const state = {
   layers: {}, // Store generated maps for each Z-level
   visibilityOn: true,
   seen: new Set(),
-  player: {x:2, y:1, hp:10, hpMax:10, str:5, int:5, agi:5, stamina:10, stamMax:10, facing:{dx:0,dy:1}},
+  player: {x:2, y:1, hp:10, hpMax:10, str:5, int:5, agi:5, stamina:10, stamMax:10, hunger:100, hungerMax:100, facing:{dx:0,dy:1}},
   region: {type:'forest', width:FOREST_W, height:FOREST_H, camX:0, camY:0},
   activeTool: 1, // 1=Spade, 2=Club, 3=Heart, 4=Diamond
   tutorial: {didDig:false, didStrike:false, didFocus:false, didCraftKey:false, didCraftAxe:false},
-  resources: {ore:0, herb:0, scrap:0, key:0, wood:0, coal:0, cloth:0, leather:0, diamond:0, ruby:0, gold:0, crystal:0, obsidian:0, torch:0, glowshroom:0, limestone:0, deepore:0},
+  resources: {ore:0, herb:0, scrap:0, key:0, wood:0, coal:0, cloth:0, leather:0, diamond:0, ruby:0, gold:0, crystal:0, obsidian:0, torch:0, glowshroom:0, limestone:0, deepore:0, berry:0, meat:0, cookedMeat:0},
   inventory: [], // Items that augment tool abilities: {name, type, bonus, special}
   entities: [], // {type, x, y, hp, glyph, state: 'idle'|'hunting'|'fleeing'|'resting'}
   items: [], // {type, x, y, glyph}
@@ -648,6 +654,13 @@ function performAttack(actor, action){
     
     if(ent.hp<=0){
       log(`<span class="unlockMsg">The ${ent.type} is defeated!</span>`);
+      
+      // Drop meat from certain creatures
+      if(['rat', 'scav', 'bat', 'mole'].includes(ent.type)){
+        state.items.push({type:'meat', x:ent.x, y:ent.y, glyph:'⚇'});
+        log('<span style="color:#b86">The creature drops raw meat.</span>');
+      }
+      
       state.entities = state.entities.filter(e=>e!==ent);
       if(!state.tutorial.didStrike){
         state.tutorial.didStrike=true;
@@ -1385,6 +1398,12 @@ function generateForest(w=FOREST_W, h=FOREST_H){
     if(m[y][x]===TILES.FLOOR) m[y][x]=TILES.SOFT;
   }
   
+  // Food items scattered in forest
+  for(let i=0; i<40; i++){
+    const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
+    if(m[y][x]===TILES.FLOOR) state.items.push({type:'berry',x,y,glyph:'●'});
+  }
+  
   // Spawn some creatures (more for larger map)
   for(let i=0; i<8; i++){
     const x=10+Math.floor(rf()*(w-20)), y=10+Math.floor(rf()*(h-20));
@@ -2090,6 +2109,49 @@ function observe(){
   render();
 }
 
+function eat(){
+  // Try to eat food in priority order: cooked meat > raw meat > berries
+  let foodEaten = null;
+  let hungerRestore = 0;
+  let staminaBoost = 0;
+  
+  if(state.resources.cookedMeat > 0){
+    state.resources.cookedMeat--;
+    foodEaten = 'Cooked Meat';
+    hungerRestore = 40;
+    staminaBoost = 5;
+  } else if(state.resources.meat > 0){
+    state.resources.meat--;
+    foodEaten = 'Raw Meat';
+    hungerRestore = 25;
+    staminaBoost = 2;
+    // Chance of getting sick from raw meat
+    if(rf() < 0.3){
+      log('<span style="color:#da6">⚠ The raw meat makes you feel queasy...</span>');
+      state.player.stamina = Math.max(0, state.player.stamina - 1);
+    }
+  } else if(state.resources.berry > 0){
+    state.resources.berry--;
+    foodEaten = 'Berries';
+    hungerRestore = 20;
+    staminaBoost = 2;
+  }
+  
+  if(foodEaten){
+    state.player.hunger = Math.min(state.player.hungerMax, state.player.hunger + hungerRestore);
+    state.player.stamina = Math.min(state.player.stamMax, state.player.stamina + staminaBoost);
+    log(`<span class="unlockMsg">You eat ${foodEaten}. (+${hungerRestore} hunger, +${staminaBoost} stamina)</span>`);
+    
+    if(state.player.hunger >= 70){
+      log('<span style="color:#6d6">You feel well-fed! Stamina regenerates faster.</span>');
+    }
+  } else {
+    log('<span class="warnMsg">No food to eat! Find berries, meat, or cook food.</span>');
+  }
+  
+  worldTick();
+}
+
 function pickup(){
   const item = state.items.find(i=>i.x===state.player.x&&i.y===state.player.y);
   if(item){
@@ -2186,9 +2248,23 @@ function worldTick(){
   updateCamera();
   state.turns++;
   
-  // Passive stamina regeneration (slower when moving, faster when resting)
+  // Hunger decreases over time
+  if(state.turns % 5 === 0 && state.player.hunger > 0){
+    const oldHunger = state.player.hunger;
+    state.player.hunger = Math.max(0, state.player.hunger - 0.5);
+    
+    // Warn when crossing hunger thresholds
+    if(oldHunger >= 30 && state.player.hunger < 30){
+      log('<span style="color:#da6">⚠ You are getting hungry! Find food or eat (F key).</span>');
+    } else if(oldHunger >= 10 && state.player.hunger < 10){
+      log('<span class="warnMsg">⚠ You are starving! Stamina regeneration is very slow.</span>');
+    }
+  }
+  
+  // Passive stamina regeneration (scales with hunger level)
   if(state.turns % 3 === 0 && state.player.stamina < state.player.stamMax){
-    const regenRate = 0.2; // Slow passive regen
+    const hungerBonus = state.player.hunger / state.player.hungerMax; // 0 to 1
+    const regenRate = 0.2 * (0.5 + hungerBonus); // 0.1 when starving to 0.4 when well-fed
     state.player.stamina = Math.min(state.player.stamMax, state.player.stamina + regenRate);
   }
   
@@ -2564,8 +2640,10 @@ function render(){
 function updateHUD(){
   hp.textContent = state.player.hp;
   hpMax.textContent = state.player.hpMax;
-  stam.textContent = state.player.stamina;
+  stam.textContent = state.player.stamina.toFixed(1);
   stamMax.textContent = state.player.stamMax;
+  hunger.textContent = Math.floor(state.player.hunger);
+  hungerMax.textContent = state.player.hungerMax;
   str.textContent = pad(state.player.str,2);
   int_.textContent = pad(state.player.int,2);
   agi.textContent = pad(state.player.agi,2);
@@ -2747,6 +2825,7 @@ addEventListener('keydown', (e)=>{
   }
   else if(k==='r'||k==='R') requestPlayerRest();
   else if(k==='o'||k==='O') requestPlayerObserve();
+  else if(k==='f'||k==='F') eat();
   else if(k==='i'||k==='I') { showInventory(); }
   else if(k==='v'||k==='V') { state.visibilityOn=!state.visibilityOn; log('Visibility '+(state.visibilityOn?'ON':'OFF')); render(); }
   else if(k==='h'||k==='H'||k==='k'||k==='K') toggleHelp();
@@ -2770,6 +2849,8 @@ const hp = document.getElementById('hp');
 const hpMax = document.getElementById('hpMax');
 const stam = document.getElementById('stam');
 const stamMax = document.getElementById('stamMax');
+const hunger = document.getElementById('hunger');
+const hungerMax = document.getElementById('hungerMax');
 const str = document.getElementById('str');
 const int_ = document.getElementById('int');
 const agi = document.getElementById('agi');
