@@ -508,10 +508,21 @@ function performMove(actor, action){
   actor.x = nx;
   actor.y = ny;
   
+  // Stamina cost based on agility (higher AGI = lower cost)
+  const baseCost = 0.5;
+  const agiBonus = Math.max(0, (actor.agi - 5) * 0.05); // Every point above 5 reduces cost by 5%
+  const staminaCost = Math.max(0.1, baseCost - agiBonus);
+  actor.stamina = Math.max(0, actor.stamina - staminaCost);
+  
   // Micro stat gain (agility from movement)
   actor.agi = Math.round((actor.agi + 0.01) * 100) / 100;
   
-  // Future: Stamina cost injection, terrain effects, trigger events
+  // Warn if stamina is low
+  if(actor.stamina < 2 && actor.stamina > 0){
+    log('<span style="color:#da6">⚠ Stamina low! Use Heart tool to recover.</span>');
+  } else if(actor.stamina <= 0){
+    log('<span class="warnMsg">⚠ Exhausted! Cannot perform actions until stamina recovers.</span>');
+  }
 }
 
 function performDig(actor, action){
@@ -528,8 +539,10 @@ function performDig(actor, action){
   const bonus = bestTool ? bestTool.bonus : 0;
   const hasMining = tools.some(t=>t.special==='mining');
   
-  // Check stamina for actions that require it
-  const staminaCost = (tile===TILES.SOFT || tile===TILES.WALL) ? 2 : 1;
+  // Check stamina for actions that require it (STR reduces cost)
+  const baseStaminaCost = (tile===TILES.SOFT || tile===TILES.WALL) ? 2 : 1;
+  const strBonus = Math.max(0, (actor.str - 5) * 0.1); // Every point above 5 reduces cost by 10%
+  const staminaCost = Math.max(0.5, baseStaminaCost - strBonus);
   
   if(tile===TILES.SOFT){
     if(actor.stamina < staminaCost){
@@ -539,6 +552,10 @@ function performDig(actor, action){
     actor.stamina -= staminaCost;
     state.map[y][x]=TILES.FLOOR;
     log(`<span class="unlockMsg">You dig away the soft earth with ${tool}.</span>`);
+    
+    // STR gain from physical labor (digging)
+    actor.str = Math.round((actor.str + 0.02) * 100) / 100;
+    
     if(!state.tutorial.didDig){
       state.tutorial.didDig=true;
       log('<span class="unlockMsg">✓ Tutorial: Learned to dig!</span>');
@@ -552,6 +569,10 @@ function performDig(actor, action){
     state.map[y][x]=TILES.FLOOR;
     state.resources.scrap++;
     log(`You clear rubble with ${tool}, gaining scrap.`);
+    
+    // STR gain from physical labor (clearing rubble)
+    actor.str = Math.round((actor.str + 0.01) * 100) / 100;
+    
   } else if(tile===TILES.TREE && bestTool){
     if(actor.stamina < staminaCost){
       log('<span class="warnMsg">Not enough stamina to chop!</span>');
@@ -562,6 +583,10 @@ function performDig(actor, action){
     const woodGained = 2 + bonus;
     state.resources.wood += woodGained;
     log(`<span class="unlockMsg">You chop down the tree with ${tool} and collect ${woodGained} wood!</span>`);
+    
+    // STR gain from physical labor (chopping)
+    actor.str = Math.round((actor.str + 0.03) * 100) / 100;
+    
   } else if(tile===TILES.WALL && bestTool){
     if(actor.stamina < staminaCost){
       log('<span class="warnMsg">Not enough stamina to break the wall!</span>');
@@ -585,6 +610,9 @@ function performDig(actor, action){
         log('<span class="unlockMsg">You found coal in the wall!</span>');
       }
     }
+    
+    // STR gain from physical labor (mining/breaking walls)
+    actor.str = Math.round((actor.str + 0.04) * 100) / 100;
   } else {
     log(bestTool ? 'Nothing to dig or chop here.' : 'Nothing to dig here with bare hands.');
   }
@@ -595,14 +623,29 @@ function performAttack(actor, action){
   // action.params: {x, y}
   const {x, y} = action.params;
   
+  // Stamina cost for combat (STR reduces cost)
+  const baseCombatCost = 1.5;
+  const strBonus = Math.max(0, (actor.str - 5) * 0.1);
+  const staminaCost = Math.max(0.5, baseCombatCost - strBonus);
+  
+  if(actor.stamina < staminaCost){
+    log('<span class="warnMsg">Not enough stamina to attack!</span>');
+    return;
+  }
+  
   const ent = state.entities.find(e=>e.x===x&&e.y===y);
   const weapon = state.inventory.find(i=>i.type==='club');
   const tool = weapon ? weapon.name : 'fists';
   const damage = actor.str + (weapon ? weapon.bonus : 0);
   
   if(ent){
+    actor.stamina -= staminaCost;
     ent.hp -= damage;
     log(`You strike the ${ent.type} with ${tool} for ${damage} damage!`);
+    
+    // STR gain from combat
+    actor.str = Math.round((actor.str + 0.03) * 100) / 100;
+    
     if(ent.hp<=0){
       log(`<span class="unlockMsg">The ${ent.type} is defeated!</span>`);
       state.entities = state.entities.filter(e=>e!==ent);
@@ -628,21 +671,36 @@ function performRest(actor, action){
 }
 
 function performFocus(actor, action){
-  // Execute focus action (heart tool) - restore HP or stamina
+  // Execute focus action (heart tool) - meditation for stamina/HP recovery
+  // INT affects effectiveness of focus
+  const intBonus = Math.max(0, (actor.int - 5) * 0.2); // Every point above 5 adds 20% effectiveness
+  
   if(actor.hp < actor.hpMax && actor.stamina >= 2){
-    actor.hp = Math.min(actor.hpMax, actor.hp + 1);
+    // Heal HP at cost of stamina
+    const healAmount = Math.max(1, Math.floor(1 + intBonus));
+    actor.hp = Math.min(actor.hpMax, actor.hp + healAmount);
     actor.stamina -= 2;
-    log('You focus, restoring 1 HP.');
+    log(`<span class="unlockMsg">You focus your mind, restoring ${healAmount} HP.</span>`);
+    
+    // INT gain from meditation
+    actor.int = Math.round((actor.int + 0.02) * 100) / 100;
+    
   } else if(actor.stamina < actor.stamMax){
-    actor.stamina = Math.min(actor.stamMax, actor.stamina + 3);
-    log('You breathe deeply, restoring stamina.');
+    // Restore stamina through deep breathing/meditation
+    const staminaGain = Math.max(3, Math.floor(3 + intBonus));
+    actor.stamina = Math.min(actor.stamMax, actor.stamina + staminaGain);
+    log(`<span class="unlockMsg">You meditate deeply, restoring ${staminaGain} stamina.</span>`);
+    
+    // INT gain from meditation
+    actor.int = Math.round((actor.int + 0.03) * 100) / 100;
+    
   } else {
     log('You are already at full health and stamina.');
   }
   
   if(!state.tutorial.didFocus){
     state.tutorial.didFocus=true;
-    log('<span class="unlockMsg">✓ Tutorial: Learned Heart technique!</span>');
+    log('<span class="unlockMsg">✓ Tutorial: Learned Heart meditation technique!</span>');
   }
 }
 
@@ -1899,10 +1957,21 @@ function craftRecipe(recipeId){
     return;
   }
   
+  // INT affects crafting success - chance for bonus materials saved
+  const intBonus = Math.max(0, (state.player.int - 5) * 0.05); // 5% per INT above 5
+  const saveMaterials = rf() < intBonus;
+  
   // Consume inputs
   for(const [resource, amount] of Object.entries(recipe.inputs)){
-    state.resources[resource] -= amount;
+    const consumed = saveMaterials ? Math.max(1, amount - 1) : amount;
+    state.resources[resource] -= consumed;
+    if(saveMaterials && consumed < amount){
+      log(`<span style="color:#5ad">Your skill saves ${amount - consumed} ${resource}!</span>`);
+    }
   }
+  
+  // INT gain from crafting
+  state.player.int = Math.round((state.player.int + 0.02) * 100) / 100;
   
   // Produce outputs
   for(const [output, amount] of Object.entries(recipe.outputs)){
@@ -2024,6 +2093,10 @@ function observe(){
 function pickup(){
   const item = state.items.find(i=>i.x===state.player.x&&i.y===state.player.y);
   if(item){
+    // INT affects resource gathering - chance for bonus yield
+    const intBonus = Math.max(0, (state.player.int - 5) * 0.08); // 8% per INT above 5
+    const bonusYield = rf() < intBonus;
+    
     // Handle special items
     if(item.type === 'tablet'){
       log('<span style="color:#c9f">You read the ancient tablet:</span>');
@@ -2031,22 +2104,29 @@ function pickup(){
       log('<span style="color:#c9f">"Seek the deeper sanctums. Truth lies beneath."</span>');
       state.resources.lore = (state.resources.lore || 0) + 1;
       state.items = state.items.filter(i=>i!==item);
+      
+      // INT gain from reading lore
+      state.player.int = Math.round((state.player.int + 0.05) * 100) / 100;
     }
-    // Handle deepore - yields 2 ore
+    // Handle deepore - yields 2 ore (or 3 with bonus)
     else if(item.type === 'deepore'){
-      state.resources.ore = (state.resources.ore || 0) + 2;
+      const oreYield = bonusYield ? 3 : 2;
+      state.resources.ore = (state.resources.ore || 0) + oreYield;
       state.items = state.items.filter(i=>i!==item);
-      log('<span class="unlockMsg">Picked up deep ore vein! (+2 ore)</span>');
+      log(`<span class="unlockMsg">Picked up deep ore vein! (+${oreYield} ore)${bonusYield ? ' [Bonus!]' : ''}</span>`);
     }
     // Regular resources
     else {
+      const baseAmount = 1;
+      const amount = bonusYield ? baseAmount + 1 : baseAmount;
+      
       if(item.type in state.resources){
-        state.resources[item.type]++;
+        state.resources[item.type] += amount;
       } else {
-        state.resources[item.type] = 1;
+        state.resources[item.type] = amount;
       }
       state.items = state.items.filter(i=>i!==item);
-      log(`Picked up ${item.type}.`);
+      log(`Picked up ${item.type}${bonusYield ? ` (+${amount} [Bonus!])` : ''}.`);
     }
   } else {
     log('Nothing to pick up here.');
@@ -2105,6 +2185,12 @@ function worldTick(){
   
   updateCamera();
   state.turns++;
+  
+  // Passive stamina regeneration (slower when moving, faster when resting)
+  if(state.turns % 3 === 0 && state.player.stamina < state.player.stamMax){
+    const regenRate = 0.2; // Slow passive regen
+    state.player.stamina = Math.min(state.player.stamMax, state.player.stamina + regenRate);
+  }
   
   // Forest simulation (always active now)
   if(state.turns%2===0) simulateCreatures();
