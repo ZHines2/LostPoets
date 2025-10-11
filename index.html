@@ -213,183 +213,280 @@ Depth: <span id="depth">Z=0</span></div>
   </div>
 
   <!-- Debug Menu Screen -->
-  <div id="debugScreen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:10000;overflow-y:auto">
-    <div style="max-width:1200px;margin:0 auto;padding:20px;font-family:monospace;color:var(--ink)">
-      <div style="text-align:center;border-bottom:2px solid var(--diamond);padding-bottom:15px;margin-bottom:25px">
-        <h2 style="color:var(--diamond);margin:0 0 8px 0;font-size:24px;letter-spacing:2px">⚙ DEBUG MENU ⚙</h2>
-        <p style="color:var(--muted);font-size:13px;margin:0">Press <kbd style="border:1px solid var(--line);padding:2px 6px;background:#111">`</kbd> or <kbd style="border:1px solid var(--line);padding:2px 6px;background:#111">ESC</kbd> to return to game</p>
+  <div id="debugScreen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.98);z-index:10000;overflow-y:auto;backdrop-filter:blur(3px)">
+    <div style="max-width:1400px;margin:0 auto;padding:30px 20px;font-family:monospace;color:var(--ink)">
+      <!-- Header -->
+      <div style="text-align:center;background:linear-gradient(to bottom, #0a0a0a, transparent);border:2px solid var(--diamond);border-radius:8px;padding:20px;margin-bottom:30px;box-shadow:0 4px 20px rgba(90,173,221,0.2)">
+        <h2 style="color:var(--diamond);margin:0 0 8px 0;font-size:28px;letter-spacing:3px;text-shadow:0 0 10px rgba(90,173,221,0.5)">⚙ DEBUG MENU ⚙</h2>
+        <p style="color:var(--muted);font-size:13px;margin:0">Press <kbd style="border:1px solid var(--diamond);padding:3px 8px;background:#111;border-radius:3px;box-shadow:0 2px 4px rgba(0,0,0,0.5)">`</kbd> or <kbd style="border:1px solid var(--diamond);padding:3px 8px;background:#111;border-radius:3px;box-shadow:0 2px 4px rgba(0,0,0,0.5)">ESC</kbd> to return to game</p>
       </div>
 
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(350px,1fr));gap:20px">
-        
-        <!-- Game State Section -->
-        <div style="border:2px solid var(--spade);padding:15px;background:#0a0a0a">
-          <h3 style="color:var(--spade);margin:0 0 12px 0;font-size:16px">📊 GAME STATE</h3>
-          <div style="font-size:13px;line-height:1.8;color:var(--muted)">
-            <div>Turns: <span id="debugTurns" style="color:var(--ink)">0</span></div>
-            <div>Seed: <span id="debugSeed" style="color:var(--ink)">0</span></div>
-            <div>Position: <span id="debugPosition" style="color:var(--ink)">0,0</span></div>
-            <div>Z-Level: <span id="debugZLevel" style="color:var(--ink)">0</span></div>
-            <div>Weather: <span id="debugWeather" style="color:var(--ink)">clear</span></div>
-            <div>Time: <span id="debugTime" style="color:var(--ink)">day</span></div>
-          </div>
-          <div style="margin-top:12px">
-            <button id="debugCycleWeather" style="padding:6px 12px;background:var(--spade);border:none;color:#000;cursor:pointer;font-family:monospace;margin:3px">Cycle Weather</button>
-            <button id="debugCycleTime" style="padding:6px 12px;background:var(--spade);border:none;color:#000;cursor:pointer;font-family:monospace;margin:3px">Cycle Time</button>
-          </div>
-        </div>
-
-        <!-- Player Stats Section -->
-        <div style="border:2px solid var(--heart);padding:15px;background:#0a0a0a">
-          <h3 style="color:var(--heart);margin:0 0 12px 0;font-size:16px">💪 PLAYER STATS</h3>
-          <div style="font-size:12px">
-            <div style="margin-bottom:8px">
-              <label style="color:var(--muted)">HP: <span id="debugHP">10</span>/<span id="debugHPMax">10</span></label>
-              <input type="range" id="debugHPSlider" min="0" max="100" value="10" style="width:100%;margin-top:3px">
-            </div>
-            <div style="margin-bottom:8px">
-              <label style="color:var(--muted)">Stamina: <span id="debugStamina">10</span>/<span id="debugStaminaMax">10</span></label>
-              <input type="range" id="debugStaminaSlider" min="0" max="100" value="10" style="width:100%;margin-top:3px">
-            </div>
-            <div style="margin-bottom:8px">
-              <label style="color:var(--muted)">Hunger: <span id="debugHunger">100</span>/<span id="debugHungerMax">100</span></label>
-              <input type="range" id="debugHungerSlider" min="0" max="100" value="100" style="width:100%;margin-top:3px">
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
-              <div>
-                <label style="color:var(--muted);font-size:11px">STR</label>
-                <input type="number" id="debugSTR" min="1" max="99" value="5" style="width:100%;padding:4px;background:#000;color:var(--ink);border:1px solid var(--line);font-family:monospace">
-              </div>
-              <div>
-                <label style="color:var(--muted);font-size:11px">INT</label>
-                <input type="number" id="debugINT" min="1" max="99" value="5" style="width:100%;padding:4px;background:#000;color:var(--ink);border:1px solid var(--line);font-family:monospace">
-              </div>
-              <div>
-                <label style="color:var(--muted);font-size:11px">AGI</label>
-                <input type="number" id="debugAGI" min="1" max="99" value="5" style="width:100%;padding:4px;background:#000;color:var(--ink);border:1px solid var(--line);font-family:monospace">
-              </div>
-            </div>
-          </div>
-          <div style="margin-top:12px">
-            <button id="debugRestoreAll" style="padding:6px 12px;background:var(--heart);border:none;color:#000;cursor:pointer;font-family:monospace;margin:3px">Restore All</button>
-            <button id="debugMaxStats" style="padding:6px 12px;background:var(--heart);border:none;color:#000;cursor:pointer;font-family:monospace;margin:3px">Max Stats</button>
-          </div>
-        </div>
-
-        <!-- Resources Section -->
-        <div style="border:2px solid var(--club);padding:15px;background:#0a0a0a">
-          <h3 style="color:var(--club);margin:0 0 12px 0;font-size:16px">💎 RESOURCES</h3>
-          <div id="debugResourcesList" style="max-height:200px;overflow-y:auto;font-size:12px;margin-bottom:10px"></div>
-          <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px">
-            <select id="debugResourceSelect" style="padding:4px;background:#000;color:var(--ink);border:1px solid var(--line);font-family:monospace;font-size:12px">
-              <option value="">Select resource...</option>
-            </select>
-            <input type="number" id="debugResourceAmount" placeholder="Amount" min="0" max="999" value="10" style="width:80px;padding:4px;background:#000;color:var(--ink);border:1px solid var(--line);font-family:monospace;font-size:12px">
-          </div>
-          <div style="margin-top:8px">
-            <button id="debugAddResource" style="padding:6px 12px;background:var(--club);border:none;color:#000;cursor:pointer;font-family:monospace;margin:3px;font-size:12px">Add</button>
-            <button id="debugClearResources" style="padding:6px 12px;background:#444;border:none;color:#ccc;cursor:pointer;font-family:monospace;margin:3px;font-size:12px">Clear All</button>
-            <button id="debugMaxResources" style="padding:6px 12px;background:var(--club);border:none;color:#000;cursor:pointer;font-family:monospace;margin:3px;font-size:12px">Max All</button>
-          </div>
-        </div>
-
-        <!-- Item Creator Section -->
-        <div style="border:2px solid var(--diamond);padding:15px;background:#0a0a0a">
-          <h3 style="color:var(--diamond);margin:0 0 12px 0;font-size:16px">🔨 ITEM CREATOR</h3>
-          <div style="font-size:12px">
-            <label style="color:var(--muted);display:block;margin-bottom:5px">Select Recipe:</label>
-            <select id="debugRecipeSelect" style="width:100%;padding:6px;background:#000;color:var(--ink);border:1px solid var(--line);font-family:monospace;font-size:12px;margin-bottom:10px">
-              <option value="">Choose recipe...</option>
-            </select>
-            <div id="debugRecipeInfo" style="color:var(--muted);font-size:11px;margin-bottom:10px;min-height:40px"></div>
-            <button id="debugCreateItem" style="padding:8px 16px;background:var(--diamond);border:none;color:#000;cursor:pointer;font-family:monospace;width:100%">Create Item</button>
-          </div>
-        </div>
-
-        <!-- Teleport Section -->
-        <div style="border:2px solid var(--warning);padding:15px;background:#0a0a0a">
-          <h3 style="color:var(--warning);margin:0 0 12px 0;font-size:16px">🌍 TELEPORT</h3>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-            <div>
-              <label style="color:var(--muted);font-size:11px">X Position</label>
-              <input type="number" id="debugTeleportX" min="0" max="200" value="0" style="width:100%;padding:4px;background:#000;color:var(--ink);border:1px solid var(--line);font-family:monospace">
-            </div>
-            <div>
-              <label style="color:var(--muted);font-size:11px">Y Position</label>
-              <input type="number" id="debugTeleportY" min="0" max="200" value="0" style="width:100%;padding:4px;background:#000;color:var(--ink);border:1px solid var(--line);font-family:monospace">
-            </div>
-          </div>
-          <button id="debugTeleportGo" style="padding:8px 16px;background:var(--warning);border:none;color:#000;cursor:pointer;font-family:monospace;width:100%;margin-bottom:8px">Teleport</button>
-          <button id="debugTeleportLab" style="padding:6px 12px;background:#666;border:none;color:#fff;cursor:pointer;font-family:monospace;width:100%">Go to Secret Lab</button>
-        </div>
-
-        <!-- Recipe Manager Section -->
-        <div style="border:2px solid var(--success);padding:15px;background:#0a0a0a">
-          <h3 style="color:var(--success);margin:0 0 12px 0;font-size:16px">📜 RECIPE MANAGER</h3>
-          <div id="debugRecipesList" style="max-height:180px;overflow-y:auto;font-size:11px;margin-bottom:10px"></div>
-          <div style="margin-top:8px">
-            <button id="debugUnlockAllRecipes" style="padding:6px 12px;background:var(--success);border:none;color:#000;cursor:pointer;font-family:monospace;margin:3px;font-size:12px">Unlock All</button>
-            <button id="debugLockAllRecipes" style="padding:6px 12px;background:#444;border:none;color:#ccc;cursor:pointer;font-family:monospace;margin:3px;font-size:12px">Lock All</button>
-          </div>
-        </div>
-
-        <!-- Configuration Section -->
-        <div style="border:2px solid #888;padding:15px;background:#0a0a0a;grid-column:1/-1">
-          <h3 style="color:#888;margin:0 0 15px 0;font-size:16px">⚙️ CONFIGURATION</h3>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:15px">
-            <div>
-              <h4 style="color:var(--spade);margin:0 0 8px 0;font-size:13px">Movement Stamina Cost</h4>
-              <input type="range" id="debugMoveCost" min="0.01" max="1.0" step="0.01" value="0.05" style="width:100%">
-              <div style="color:var(--muted);font-size:11px">Base Cost: <span id="debugMoveCostValue">0.05</span></div>
-            </div>
-            <div>
-              <h4 style="color:var(--heart);margin:0 0 8px 0;font-size:13px">Stamina Regen Multiplier</h4>
-              <input type="range" id="debugStamRegen" min="0.1" max="5.0" step="0.1" value="1.0" style="width:100%">
-              <div style="color:var(--muted);font-size:11px">Multiplier: <span id="debugStamRegenValue">1.0</span>x</div>
-            </div>
-            <div>
-              <h4 style="color:var(--club);margin:0 0 8px 0;font-size:13px">Hunger Decay Rate</h4>
-              <input type="range" id="debugHungerDecay" min="0" max="2.0" step="0.1" value="0.5" style="width:100%">
-              <div style="color:var(--muted);font-size:11px">Per 5 turns: <span id="debugHungerDecayValue">0.5</span></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Entity Spawner Section -->
-        <div style="border:2px solid var(--error);padding:15px;background:#0a0a0a;grid-column:1/-1">
-          <h3 style="color:var(--error);margin:0 0 12px 0;font-size:16px">🐺 ENTITY SPAWNER</h3>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px">
-            <div>
-              <label style="color:var(--muted);font-size:11px">Entity Type</label>
-              <select id="debugEntityType" style="width:100%;padding:6px;background:#000;color:var(--ink);border:1px solid var(--line);font-family:monospace;font-size:12px">
-                <option value="wolf">Wolf (hostile)</option>
-                <option value="bear">Bear (neutral)</option>
-                <option value="deer">Deer (passive)</option>
-                <option value="snake">Snake (hostile)</option>
-              </select>
-            </div>
-            <div>
-              <label style="color:var(--muted);font-size:11px">Spawn Offset</label>
-              <select id="debugEntityOffset" style="width:100%;padding:6px;background:#000;color:var(--ink);border:1px solid var(--line);font-family:monospace;font-size:12px">
-                <option value="current">At player position</option>
-                <option value="nearby">Nearby (random)</option>
-                <option value="visible">In visible range</option>
-              </select>
-            </div>
-            <div style="display:flex;align-items:flex-end">
-              <button id="debugSpawnEntity" style="padding:8px 16px;background:var(--error);border:none;color:#fff;cursor:pointer;font-family:monospace;width:100%">Spawn Entity</button>
-            </div>
-          </div>
-          <div style="margin-top:10px">
-            <button id="debugClearEntities" style="padding:6px 12px;background:#444;border:none;color:#ccc;cursor:pointer;font-family:monospace;font-size:12px">Clear All Entities</button>
-            <span style="color:var(--muted);font-size:11px;margin-left:12px">Active Entities: <span id="debugEntityCount">0</span></span>
-          </div>
-        </div>
-
+      <!-- Tab Navigation -->
+      <div style="display:flex;gap:10px;margin-bottom:25px;flex-wrap:wrap;justify-content:center">
+        <button onclick="switchDebugTab('core')" id="debugTabCore" style="padding:10px 20px;background:var(--diamond);border:2px solid var(--diamond);color:#000;cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">⚡ CORE</button>
+        <button onclick="switchDebugTab('inventory')" id="debugTabInventory" style="padding:10px 20px;background:#0a0a0a;border:2px solid var(--line);color:var(--muted);cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🎒 INVENTORY</button>
+        <button onclick="switchDebugTab('world')" id="debugTabWorld" style="padding:10px 20px;background:#0a0a0a;border:2px solid var(--line);color:var(--muted);cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🌍 WORLD</button>
+        <button onclick="switchDebugTab('advanced')" id="debugTabAdvanced" style="padding:10px 20px;background:#0a0a0a;border:2px solid var(--line);color:var(--muted);cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🔧 ADVANCED</button>
       </div>
 
-      <div style="text-align:center;margin-top:30px;padding-top:20px;border-top:2px solid var(--line)">
-        <p style="color:var(--muted);font-size:12px;margin:0">Lost Poets v0.3 — Debug Menu — All changes take effect immediately</p>
+      <!-- Core Tab -->
+      <div id="debugTabCoreContent" style="display:block">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px">
+          
+          <!-- Game State Section -->
+          <div style="border:2px solid var(--spade);border-radius:8px;padding:18px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+              <h3 style="color:var(--spade);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">📊 GAME STATE</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">READ-ONLY</span>
+            </div>
+            <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:12px;margin-bottom:12px">
+              <div style="font-size:13px;line-height:2;color:var(--muted)">
+                <div style="display:flex;justify-content:space-between"><span>⏱️ Turns:</span> <span id="debugTurns" style="color:var(--ink);font-weight:bold">0</span></div>
+                <div style="display:flex;justify-content:space-between"><span>🎲 Seed:</span> <span id="debugSeed" style="color:var(--ink);font-weight:bold">0</span></div>
+                <div style="display:flex;justify-content:space-between"><span>📍 Position:</span> <span id="debugPosition" style="color:var(--ink);font-weight:bold">0,0</span></div>
+                <div style="display:flex;justify-content:space-between"><span>⬇️ Z-Level:</span> <span id="debugZLevel" style="color:var(--ink);font-weight:bold">0</span></div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:8px;text-align:center">
+                <div style="color:var(--muted);font-size:10px;margin-bottom:4px">WEATHER</div>
+                <div id="debugWeather" style="color:var(--spade);font-weight:bold;font-size:14px;margin-bottom:6px">clear</div>
+                <button id="debugCycleWeather" style="padding:5px 10px;background:var(--spade);border:none;color:#000;cursor:pointer;font-family:monospace;font-size:11px;border-radius:3px;width:100%">🔄 Cycle</button>
+              </div>
+              <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:8px;text-align:center">
+                <div style="color:var(--muted);font-size:10px;margin-bottom:4px">TIME</div>
+                <div id="debugTime" style="color:var(--spade);font-weight:bold;font-size:14px;margin-bottom:6px">day</div>
+                <button id="debugCycleTime" style="padding:5px 10px;background:var(--spade);border:none;color:#000;cursor:pointer;font-family:monospace;font-size:11px;border-radius:3px;width:100%">🔄 Cycle</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Player Stats Section -->
+          <div style="border:2px solid var(--heart);border-radius:8px;padding:18px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+              <h3 style="color:var(--heart);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">💪 PLAYER VITALS</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">ADJUSTABLE</span>
+            </div>
+            <div style="font-size:12px;background:#000;border:1px solid var(--line);border-radius:5px;padding:12px;margin-bottom:12px">
+              <div style="margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                  <label style="color:var(--heart);font-weight:bold">❤️ HP</label>
+                  <span style="color:var(--ink);font-weight:bold"><span id="debugHP">10</span>/<span id="debugHPMax">10</span></span>
+                </div>
+                <input type="range" id="debugHPSlider" min="0" max="100" value="10" style="width:100%;accent-color:var(--heart)">
+              </div>
+              <div style="margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                  <label style="color:var(--diamond);font-weight:bold">⚡ STAMINA</label>
+                  <span style="color:var(--ink);font-weight:bold"><span id="debugStamina">10</span>/<span id="debugStaminaMax">10</span></span>
+                </div>
+                <input type="range" id="debugStaminaSlider" min="0" max="100" value="10" style="width:100%;accent-color:var(--diamond)">
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                  <label style="color:var(--warning);font-weight:bold">🍖 HUNGER</label>
+                  <span style="color:var(--ink);font-weight:bold"><span id="debugHunger">100</span>/<span id="debugHungerMax">100</span></span>
+                </div>
+                <input type="range" id="debugHungerSlider" min="0" max="100" value="100" style="width:100%;accent-color:var(--warning)">
+              </div>
+            </div>
+            <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:10px;margin-bottom:12px">
+              <div style="color:var(--muted);font-size:11px;margin-bottom:8px;text-align:center">BASE ATTRIBUTES</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+                <div style="text-align:center">
+                  <label style="color:var(--spade);font-size:11px;font-weight:bold;display:block;margin-bottom:4px">💪 STR</label>
+                  <input type="number" id="debugSTR" min="1" max="99" value="5" style="width:100%;padding:6px;background:#111;color:var(--ink);border:1px solid var(--spade);font-family:monospace;text-align:center;border-radius:3px">
+                </div>
+                <div style="text-align:center">
+                  <label style="color:var(--diamond);font-size:11px;font-weight:bold;display:block;margin-bottom:4px">🧠 INT</label>
+                  <input type="number" id="debugINT" min="1" max="99" value="5" style="width:100%;padding:6px;background:#111;color:var(--ink);border:1px solid var(--diamond);font-family:monospace;text-align:center;border-radius:3px">
+                </div>
+                <div style="text-align:center">
+                  <label style="color:var(--success);font-size:11px;font-weight:bold;display:block;margin-bottom:4px">⚡ AGI</label>
+                  <input type="number" id="debugAGI" min="1" max="99" value="5" style="width:100%;padding:6px;background:#111;color:var(--ink);border:1px solid var(--success);font-family:monospace;text-align:center;border-radius:3px">
+                </div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <button id="debugRestoreAll" style="padding:10px;background:var(--heart);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🔄 RESTORE</button>
+              <button id="debugMaxStats" style="padding:10px;background:linear-gradient(135deg, var(--heart) 0%, var(--error) 100%);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">⚡ MAX ALL</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Inventory Tab -->
+      <div id="debugTabInventoryContent" style="display:none">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px">
+
+          <!-- Resources Section -->
+          <div style="border:2px solid var(--club);border-radius:8px;padding:18px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+              <h3 style="color:var(--club);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">💎 RESOURCES</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">EDITABLE</span>
+            </div>
+            <div id="debugResourcesList" style="max-height:200px;overflow-y:auto;font-size:12px;margin-bottom:12px;background:#000;border:1px solid var(--line);border-radius:5px;padding:8px"></div>
+            <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:10px;margin-bottom:10px">
+              <div style="color:var(--muted);font-size:11px;margin-bottom:8px">ADD RESOURCES</div>
+              <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px">
+                <select id="debugResourceSelect" style="padding:8px;background:#111;color:var(--ink);border:1px solid var(--club);font-family:monospace;font-size:12px;border-radius:3px">
+                  <option value="">Select resource...</option>
+                </select>
+                <input type="number" id="debugResourceAmount" placeholder="Qty" min="0" max="999" value="10" style="width:80px;padding:8px;background:#111;color:var(--ink);border:1px solid var(--club);font-family:monospace;font-size:12px;text-align:center;border-radius:3px">
+              </div>
+              <button id="debugAddResource" style="padding:8px 16px;background:var(--club);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;font-size:12px;border-radius:5px;width:100%">➕ ADD RESOURCE</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <button id="debugMaxResources" style="padding:10px;background:linear-gradient(135deg, var(--club) 0%, var(--warning) 100%);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">⭐ MAX ALL (999)</button>
+              <button id="debugClearResources" style="padding:10px;background:#333;border:1px solid var(--error);color:var(--error);cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🗑️ CLEAR ALL</button>
+            </div>
+          </div>
+
+          <!-- Item Creator Section -->
+          <div style="border:2px solid var(--diamond);border-radius:8px;padding:18px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+              <h3 style="color:var(--diamond);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">🔨 ITEM CREATOR</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">INSTANT</span>
+            </div>
+            <div style="font-size:12px;background:#000;border:1px solid var(--line);border-radius:5px;padding:12px;margin-bottom:12px">
+              <label style="color:var(--muted);display:block;margin-bottom:8px;font-size:11px">SELECT RECIPE TO CRAFT</label>
+              <select id="debugRecipeSelect" style="width:100%;padding:10px;background:#111;color:var(--ink);border:1px solid var(--diamond);font-family:monospace;font-size:12px;margin-bottom:12px;border-radius:3px">
+                <option value="">Choose recipe...</option>
+              </select>
+              <div id="debugRecipeInfo" style="color:var(--muted);font-size:11px;margin-bottom:12px;min-height:50px;background:#111;padding:10px;border-radius:3px;border:1px solid var(--line)"></div>
+              <button id="debugCreateItem" style="padding:12px;background:var(--diamond);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;width:100%;border-radius:5px;font-size:13px">✨ CREATE ITEM</button>
+            </div>
+            <div style="background:#111;border:1px solid var(--warning);border-radius:5px;padding:8px">
+              <p style="color:var(--warning);font-size:10px;margin:0;text-align:center">⚠️ Creates items without consuming resources</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- World Tab -->
+      <div id="debugTabWorldContent" style="display:none">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px">
+
+          <!-- Teleport Section -->
+          <div style="border:2px solid var(--warning);border-radius:8px;padding:18px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+              <h3 style="color:var(--warning);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">🌍 TELEPORT</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">INSTANT</span>
+            </div>
+            <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:12px;margin-bottom:12px">
+              <div style="color:var(--muted);font-size:11px;margin-bottom:10px">COORDINATES</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                <div>
+                  <label style="color:var(--warning);font-size:11px;font-weight:bold;display:block;margin-bottom:4px">X POSITION</label>
+                  <input type="number" id="debugTeleportX" min="0" max="200" value="0" style="width:100%;padding:8px;background:#111;color:var(--ink);border:1px solid var(--warning);font-family:monospace;font-size:14px;text-align:center;border-radius:3px">
+                </div>
+                <div>
+                  <label style="color:var(--warning);font-size:11px;font-weight:bold;display:block;margin-bottom:4px">Y POSITION</label>
+                  <input type="number" id="debugTeleportY" min="0" max="200" value="0" style="width:100%;padding:8px;background:#111;color:var(--ink);border:1px solid var(--warning);font-family:monospace;font-size:14px;text-align:center;border-radius:3px">
+                </div>
+              </div>
+              <button id="debugTeleportGo" style="padding:12px;background:var(--warning);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;width:100%;margin-bottom:10px;border-radius:5px;font-size:13px">🚀 TELEPORT NOW</button>
+              <div style="border-top:1px solid var(--line);padding-top:10px;margin-top:10px">
+                <div style="color:var(--muted);font-size:11px;margin-bottom:8px">QUICK LOCATIONS</div>
+                <button id="debugTeleportLab" style="padding:10px;background:#333;border:1px solid var(--diamond);color:var(--diamond);cursor:pointer;font-family:monospace;font-weight:bold;width:100%;border-radius:5px">🔬 SECRET LAB</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recipe Manager Section -->
+          <div style="border:2px solid var(--success);border-radius:8px;padding:18px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+              <h3 style="color:var(--success);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">📜 RECIPE MANAGER</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">TOGGLE</span>
+            </div>
+            <div id="debugRecipesList" style="max-height:200px;overflow-y:auto;font-size:11px;margin-bottom:12px;background:#000;border:1px solid var(--line);border-radius:5px;padding:8px"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <button id="debugUnlockAllRecipes" style="padding:10px;background:var(--success);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🔓 UNLOCK ALL</button>
+              <button id="debugLockAllRecipes" style="padding:10px;background:#333;border:1px solid var(--error);color:var(--error);cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🔒 LOCK ALL</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Advanced Tab -->
+      <div id="debugTabAdvancedContent" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr;gap:20px">
+
+          <!-- Configuration Section -->
+          <div style="border:2px solid #888;border-radius:8px;padding:20px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+              <h3 style="color:#888;margin:0;font-size:17px;display:flex;align-items:center;gap:8px">⚙️ GAME CONFIGURATION</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">LIVE</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px">
+              <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:15px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <h4 style="color:var(--spade);margin:0;font-size:13px;font-weight:bold">⚡ Movement Cost</h4>
+                  <span style="color:var(--ink);font-weight:bold;font-size:14px"><span id="debugMoveCostValue">0.05</span></span>
+                </div>
+                <input type="range" id="debugMoveCost" min="0.01" max="1.0" step="0.01" value="0.05" style="width:100%;accent-color:var(--spade)">
+                <div style="color:var(--muted);font-size:10px;margin-top:6px;text-align:center">Stamina used per move</div>
+              </div>
+              <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:15px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <h4 style="color:var(--heart);margin:0;font-size:13px;font-weight:bold">💪 Regen Multiplier</h4>
+                  <span style="color:var(--ink);font-weight:bold;font-size:14px"><span id="debugStamRegenValue">1.0</span>x</span>
+                </div>
+                <input type="range" id="debugStamRegen" min="0.1" max="5.0" step="0.1" value="1.0" style="width:100%;accent-color:var(--heart)">
+                <div style="color:var(--muted);font-size:10px;margin-top:6px;text-align:center">Stamina regeneration rate</div>
+              </div>
+              <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:15px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <h4 style="color:var(--club);margin:0;font-size:13px;font-weight:bold">🍖 Hunger Decay</h4>
+                  <span style="color:var(--ink);font-weight:bold;font-size:14px"><span id="debugHungerDecayValue">0.5</span></span>
+                </div>
+                <input type="range" id="debugHungerDecay" min="0" max="2.0" step="0.1" value="0.5" style="width:100%;accent-color:var(--club)">
+                <div style="color:var(--muted);font-size:10px;margin-top:6px;text-align:center">Hunger lost per 5 turns</div>
+              </div>
+            </div>
+            <div style="background:#111;border:1px solid var(--warning);border-radius:5px;padding:10px;margin-top:15px">
+              <p style="color:var(--warning);font-size:11px;margin:0;text-align:center">⚠️ Changes affect gameplay balance immediately</p>
+            </div>
+          </div>
+
+          <!-- Entity Spawner Section -->
+          <div style="border:2px solid var(--error);border-radius:8px;padding:20px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5);margin-top:20px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+              <h3 style="color:var(--error);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">🐺 ENTITY SPAWNER</h3>
+              <span style="background:var(--error);color:#000;font-size:10px;padding:3px 8px;border-radius:3px;font-weight:bold">ENTITIES: <span id="debugEntityCount">0</span></span>
+            </div>
+            <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:15px;margin-bottom:15px">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:15px">
+                <div>
+                  <label style="color:var(--error);font-size:11px;font-weight:bold;display:block;margin-bottom:6px">ENTITY TYPE</label>
+                  <select id="debugEntityType" style="width:100%;padding:10px;background:#111;color:var(--ink);border:1px solid var(--error);font-family:monospace;font-size:12px;border-radius:3px">
+                    <option value="wolf">🐺 Wolf (hostile)</option>
+                    <option value="bear">🐻 Bear (neutral)</option>
+                    <option value="deer">🦌 Deer (passive)</option>
+                    <option value="snake">🐍 Snake (hostile)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="color:var(--error);font-size:11px;font-weight:bold;display:block;margin-bottom:6px">SPAWN LOCATION</label>
+                  <select id="debugEntityOffset" style="width:100%;padding:10px;background:#111;color:var(--ink);border:1px solid var(--error);font-family:monospace;font-size:12px;border-radius:3px">
+                    <option value="current">📍 At player</option>
+                    <option value="nearby">🎲 Nearby (random)</option>
+                    <option value="visible">👁️ Visible range</option>
+                  </select>
+                </div>
+              </div>
+              <button id="debugSpawnEntity" style="padding:12px;background:var(--error);border:none;color:#fff;cursor:pointer;font-family:monospace;font-weight:bold;width:100%;border-radius:5px;font-size:13px">➕ SPAWN ENTITY</button>
+            </div>
+            <button id="debugClearEntities" style="padding:10px;background:#333;border:1px solid var(--error);color:var(--error);cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;width:100%">🗑️ CLEAR ALL ENTITIES</button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="text-align:center;margin-top:40px;padding:20px;background:linear-gradient(to top, #0a0a0a, transparent);border-top:2px solid var(--line);border-radius:8px">
+        <p style="color:var(--diamond);font-size:13px;margin:0 0 5px 0;font-weight:bold">Lost Poets v0.3 — Debug Menu</p>
+        <p style="color:var(--muted);font-size:11px;margin:0">All changes take effect immediately • Use responsibly</p>
       </div>
     </div>
   </div>
@@ -2908,6 +3005,35 @@ function updateDebugValues(){
   document.getElementById('debugHungerDecayValue').textContent = debugConfig.hungerDecayRate.toFixed(1);
 }
 
+function switchDebugTab(tabName){
+  // Hide all tabs
+  document.getElementById('debugTabCoreContent').style.display = 'none';
+  document.getElementById('debugTabInventoryContent').style.display = 'none';
+  document.getElementById('debugTabWorldContent').style.display = 'none';
+  document.getElementById('debugTabAdvancedContent').style.display = 'none';
+  
+  // Reset all tab buttons
+  const tabs = ['Core', 'Inventory', 'World', 'Advanced'];
+  tabs.forEach(t => {
+    const btn = document.getElementById('debugTab' + t);
+    btn.style.background = '#0a0a0a';
+    btn.style.borderColor = 'var(--line)';
+    btn.style.color = 'var(--muted)';
+  });
+  
+  // Show selected tab
+  const tabContent = document.getElementById('debugTab' + tabName.charAt(0).toUpperCase() + tabName.slice(1) + 'Content');
+  if(tabContent) tabContent.style.display = 'block';
+  
+  // Highlight selected tab button
+  const activeBtn = document.getElementById('debugTab' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
+  if(activeBtn){
+    activeBtn.style.background = 'var(--diamond)';
+    activeBtn.style.borderColor = 'var(--diamond)';
+    activeBtn.style.color = '#000';
+  }
+}
+
 function updateDebugScreen(){
   // Update all debug screen values with current game state
   
@@ -3285,13 +3411,15 @@ document.getElementById('debugRecipeSelect').addEventListener('change', (e) => {
   const recipeId = e.target.value;
   if(recipeId && RECIPES[recipeId]){
     const recipe = RECIPES[recipeId];
-    let info = `<strong>${recipe.name}</strong><br>`;
-    info += `<span style="color:var(--muted)">${recipe.desc || 'No description'}</span><br>`;
+    let info = `<div style="color:var(--diamond);font-weight:bold;margin-bottom:6px">${recipe.name}</div>`;
+    info += `<div style="color:var(--muted);margin-bottom:6px">${recipe.desc || 'No description'}</div>`;
     if(recipe.inputs){
       const inputs = Object.entries(recipe.inputs).map(([r,a]) => `${RESOURCE_INFO[r]?.name || r} x${a}`).join(', ');
-      info += `<span style="color:var(--warning)">Inputs: ${inputs}</span>`;
+      info += `<div style="color:var(--warning);font-size:10px">📦 Requires: ${inputs}</div>`;
     }
     document.getElementById('debugRecipeInfo').innerHTML = info;
+  } else {
+    document.getElementById('debugRecipeInfo').innerHTML = '<div style="color:var(--muted);text-align:center;padding:15px">Select a recipe to see details</div>';
   }
 });
 
