@@ -207,9 +207,41 @@ Depth: <span id="depth">Z=0</span></div>
       <li>&nbsp;&nbsp;• Tools augment abilities (Axe=chop trees, Pickaxe=mine ore)</li>
       <li>&nbsp;&nbsp;• Press I to view collected items</li>
       <li>&nbsp;&nbsp;• Multiple tools stack - best bonus applies</li>
-      <li><strong>Other:</strong> V=Toggle visibility, Q=Reload, H/K=Toggle help, ;=Debug actors</li>
+      <li><strong>Other:</strong> V=Toggle visibility, Q=Reload, H/K=Toggle help, ;=Debug actors, `=Debug panel</li>
     </ul>
     <p style="text-align:center;color:var(--muted);margin-top:20px">Press H or K to close</p>
+  </div>
+
+  <!-- Debug Panel -->
+  <div id="debugOverlay" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid var(--diamond);padding:20px;z-index:10000;min-width:400px;font-family:monospace;color:var(--text)">
+    <h3 style="text-align:center;color:var(--diamond);margin-bottom:15px">⚙ DEBUG PANEL ⚙</h3>
+    
+    <div style="margin-bottom:15px">
+      <h4 style="color:var(--spade);margin-bottom:8px">Movement Stamina Cost</h4>
+      <input type="range" id="debugMoveCost" min="0.01" max="1.0" step="0.01" value="0.05" style="width:100%">
+      <div style="color:var(--muted);font-size:12px">Base Cost: <span id="debugMoveCostValue">0.05</span></div>
+    </div>
+    
+    <div style="margin-bottom:15px">
+      <h4 style="color:var(--heart);margin-bottom:8px">Stamina Regen Multiplier</h4>
+      <input type="range" id="debugStamRegen" min="0.1" max="5.0" step="0.1" value="1.0" style="width:100%">
+      <div style="color:var(--muted);font-size:12px">Multiplier: <span id="debugStamRegenValue">1.0</span>x (0.3-1.5 when well-fed)</div>
+    </div>
+    
+    <div style="margin-bottom:15px">
+      <h4 style="color:var(--club);margin-bottom:8px">Hunger Decay Rate</h4>
+      <input type="range" id="debugHungerDecay" min="0" max="2.0" step="0.1" value="0.5" style="width:100%">
+      <div style="color:var(--muted);font-size:12px">Per 5 turns: <span id="debugHungerDecayValue">0.5</span></div>
+    </div>
+    
+    <div style="margin-bottom:15px">
+      <h4 style="color:var(--diamond);margin-bottom:8px">Quick Actions</h4>
+      <button onclick="state.player.stamina = state.player.stamMax; render(); log('Stamina restored!');" style="margin:5px;padding:5px 10px;background:var(--heart);border:none;color:#000;cursor:pointer;font-family:monospace">Restore Stamina</button>
+      <button onclick="state.player.hunger = state.player.hungerMax; render(); log('Hunger restored!');" style="margin:5px;padding:5px 10px;background:var(--club);border:none;color:#000;cursor:pointer;font-family:monospace">Restore Hunger</button>
+      <button onclick="state.player.hp = state.player.hpMax; render(); log('HP restored!');" style="margin:5px;padding:5px 10px;background:var(--spade);border:none;color:#000;cursor:pointer;font-family:monospace">Restore HP</button>
+    </div>
+    
+    <p style="text-align:center;color:var(--muted);margin-top:15px;font-size:12px">Press ` (backtick) to close</p>
   </div>
 
 <script>
@@ -367,7 +399,15 @@ const state = {
   dayNightCycle: 'day', // day, dusk, night, dawn
   lastWeatherChange: 0,
   lastDayNightChange: 0,
-  unlockedRecipes: new Set(['key', 'keyAlt', 'axe', 'torch']) // Start with basic recipes
+  unlockedRecipes: new Set(['key', 'keyAlt', 'axe', 'torch']), // Start with basic recipes
+  debugOpen: false
+};
+
+// ========== DEBUG CONFIG ==========
+const debugConfig = {
+  movementStaminaCost: 0.05,
+  staminaRegenMultiplier: 1.0,
+  hungerDecayRate: 0.5
 };
 
 // ========== RNG ==========
@@ -515,7 +555,7 @@ function performMove(actor, action){
   actor.y = ny;
   
   // Stamina cost based on agility (higher AGI = lower cost) - now negligible
-  const baseCost = 0.05;
+  const baseCost = debugConfig.movementStaminaCost;
   const agiBonus = Math.max(0, (actor.agi - 5) * 0.005); // Every point above 5 reduces cost by 0.5%
   const staminaCost = Math.max(0.01, baseCost - agiBonus);
   actor.stamina = Math.max(0, actor.stamina - staminaCost);
@@ -2251,7 +2291,7 @@ function worldTick(){
   // Hunger decreases over time
   if(state.turns % 5 === 0 && state.player.hunger > 0){
     const oldHunger = state.player.hunger;
-    state.player.hunger = Math.max(0, state.player.hunger - 0.5);
+    state.player.hunger = Math.max(0, state.player.hunger - debugConfig.hungerDecayRate);
     
     // Warn when crossing hunger thresholds
     if(oldHunger >= 30 && state.player.hunger < 30){
@@ -2264,7 +2304,7 @@ function worldTick(){
   // Passive stamina regeneration (scales with hunger level)
   if(state.turns % 2 === 0 && state.player.stamina < state.player.stamMax){
     const hungerBonus = state.player.hunger / state.player.hungerMax; // 0 to 1
-    const regenRate = 1.0 * (0.3 + hungerBonus * 1.2); // 0.3 when starving to 1.5 when well-fed
+    const regenRate = debugConfig.staminaRegenMultiplier * (0.3 + hungerBonus * 1.2); // 0.3 when starving to 1.5 when well-fed
     state.player.stamina = Math.min(state.player.stamMax, state.player.stamina + regenRate);
   }
   
@@ -2700,6 +2740,20 @@ function toggleHelp(){
   if(!state.helpOpen) view.focus();
 }
 
+function toggleDebug(){
+  state.debugOpen = !state.debugOpen;
+  const debugOverlay = document.getElementById('debugOverlay');
+  debugOverlay.style.display = state.debugOpen ? 'block' : 'none';
+  if(!state.debugOpen) view.focus();
+}
+
+function updateDebugValues(){
+  // Update debug panel display values
+  document.getElementById('debugMoveCostValue').textContent = debugConfig.movementStaminaCost.toFixed(2);
+  document.getElementById('debugStamRegenValue').textContent = debugConfig.staminaRegenMultiplier.toFixed(1);
+  document.getElementById('debugHungerDecayValue').textContent = debugConfig.hungerDecayRate.toFixed(1);
+}
+
 function showInventory(){
   state.inventoryModalOpen = true;
   
@@ -2832,6 +2886,7 @@ addEventListener('keydown', (e)=>{
   else if(k==='q'||k==='Q') location.reload();
   else if(k==='l'||k==='L') teleportToLab();
   else if(k===';') dumpActors(); // Debug: dump actor registry
+  else if(k==='`') toggleDebug(); // Toggle debug panel
   // AI Driver controls
   else if(k==='[') { if(aiDriver.enabled) stopAI(); else startAI('explore', 500); } // Toggle AI
   else if(k===']') aiStats(); // Show AI stats
@@ -2842,6 +2897,22 @@ addEventListener('keydown', (e)=>{
 for(let i=1;i<=4;i++){
   document.getElementById('tool'+i).addEventListener('click', ()=>selectTool(i));
 }
+
+// Debug panel event listeners
+document.getElementById('debugMoveCost').addEventListener('input', (e) => {
+  debugConfig.movementStaminaCost = parseFloat(e.target.value);
+  updateDebugValues();
+});
+
+document.getElementById('debugStamRegen').addEventListener('input', (e) => {
+  debugConfig.staminaRegenMultiplier = parseFloat(e.target.value);
+  updateDebugValues();
+});
+
+document.getElementById('debugHungerDecay').addEventListener('input', (e) => {
+  debugConfig.hungerDecayRate = parseFloat(e.target.value);
+  updateDebugValues();
+});
 
 // ========== BOOT ==========
 const view = document.getElementById('view');
