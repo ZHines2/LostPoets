@@ -514,10 +514,10 @@ function performMove(actor, action){
   actor.x = nx;
   actor.y = ny;
   
-  // Stamina cost based on agility (higher AGI = lower cost)
-  const baseCost = 0.5;
-  const agiBonus = Math.max(0, (actor.agi - 5) * 0.05); // Every point above 5 reduces cost by 5%
-  const staminaCost = Math.max(0.1, baseCost - agiBonus);
+  // Stamina cost based on agility (higher AGI = lower cost) - now negligible
+  const baseCost = 0.05;
+  const agiBonus = Math.max(0, (actor.agi - 5) * 0.005); // Every point above 5 reduces cost by 0.5%
+  const staminaCost = Math.max(0.01, baseCost - agiBonus);
   actor.stamina = Math.max(0, actor.stamina - staminaCost);
   
   // Micro stat gain (agility from movement)
@@ -2264,7 +2264,7 @@ function worldTick(){
   // Passive stamina regeneration (scales with hunger level)
   if(state.turns % 2 === 0 && state.player.stamina < state.player.stamMax){
     const hungerBonus = state.player.hunger / state.player.hungerMax; // 0 to 1
-    const regenRate = 0.5 * (0.5 + hungerBonus); // 0.25 when starving to 0.75 when well-fed
+    const regenRate = 1.0 * (0.3 + hungerBonus * 1.2); // 0.3 when starving to 1.5 when well-fed
     state.player.stamina = Math.min(state.player.stamMax, state.player.stamina + regenRate);
   }
   
