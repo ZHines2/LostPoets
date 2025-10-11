@@ -180,6 +180,7 @@ The world updates in discrete turns with various subsystems running at different
 
 **Simulation Schedule:**
 - **Turn 0** (always): Process actions, update camera
+- **Every 2 turns**: Stamina regeneration (scales with hunger)
 - **Every 5 turns**: Hunger decay
 - **Every 10 turns**: Creature AI (movement, state changes)
 - **Every 12 turns**: Flora growth/regeneration
@@ -471,8 +472,8 @@ function useSpade(x, y){
 
 ### Progression Systems
 - **Stat Growth**: STR/INT/AGI increase through actions
-- **Hunger Mechanic**: Must eat food to maintain stamina
-- **Stamina System**: Actions consume energy
+- **Hunger Mechanic**: Must eat food to maintain stamina regeneration
+- **Stamina System**: Actions consume energy; passive regeneration every 2 turns (0.25-0.75 based on hunger)
 - **Crafting Tiers**: 15+ recipes from basic to legendary
 - **Inventory Augments**: Tools become more powerful with crafted items
 
