@@ -22,6 +22,14 @@
     .term{padding:8px;border-left:1px solid var(--line);border-right:1px solid var(--line)}
     #hud{border-left:1px solid var(--line);}
     #hud .panel{padding:6px 8px;border-bottom:1px solid var(--line); font-size:13px}
+    
+    /* Progress bars */
+    .progress-bar{background:#111;border:1px solid var(--line);height:8px;margin:4px 0;position:relative;overflow:hidden}
+    .progress-fill{height:100%;transition:width 0.3s ease;position:absolute;left:0;top:0}
+    .progress-hp{background:linear-gradient(90deg, #e55, #f77)}
+    .progress-stam{background:linear-gradient(90deg, #5ad, #7df)}
+    .progress-hunger{background:linear-gradient(90deg, #da6, #fc8)}
+    .stat-row{display:flex;justify-content:space-between;margin:2px 0;font-size:12px}
     .mono{font-family: ui-monospace, Menlo, Consolas, monospace}
     .dim{color:#555}
     .log{height:140px;overflow-y:auto;white-space:pre-line;color:var(--muted);overflow-x:hidden;}
@@ -38,6 +46,22 @@
     .door{color:#d84} .tree{color:#484} .entity{color:#d55; font-weight:bold}
     .item{color:#fc6}
     .stairsup{color:#fd6} .stairsdown{color:#d84} .glowshroom{color:#9c9} .limestone{color:#bbb}
+    .lava{color:#f50; animation:flicker 1.5s infinite} .water{color:#49d}
+    .crystal{color:#c9f; animation:sparkle 2s infinite} .magma{color:#f30}
+    
+    /* Animations */
+    @keyframes flicker{0%,100%{opacity:1} 50%{opacity:0.7}}
+    @keyframes sparkle{0%,100%{filter:brightness(1)} 50%{filter:brightness(1.5)}}
+    @keyframes pulse{0%,100%{transform:scale(1)} 50%{transform:scale(1.1)}}
+    @keyframes fadeIn{from{opacity:0} to{opacity:1}}
+    @keyframes slideDown{from{transform:translateY(-10px);opacity:0} to{transform:translateY(0);opacity:1}}
+    
+    /* Particle effects */
+    .damage-number{position:absolute;animation:floatUp 1s ease-out forwards;color:#f44;font-weight:bold;pointer-events:none;z-index:100}
+    @keyframes floatUp{0%{transform:translateY(0);opacity:1} 100%{transform:translateY(-30px);opacity:0}}
+    .heal-number{position:absolute;animation:floatUp 1s ease-out forwards;color:#6d6;font-weight:bold;pointer-events:none;z-index:100}
+    .sparkle-effect{position:absolute;animation:sparkleEffect 0.6s ease-out forwards;color:#fd6;pointer-events:none;z-index:100}
+    @keyframes sparkleEffect{0%{transform:scale(0.5);opacity:1} 100%{transform:scale(2);opacity:0}}
 
     /* Tool colors */
     .toolSpade{color:var(--spade)} .toolClub{color:var(--club)} .toolHeart{color:var(--heart)} .toolDiamond{color:var(--diamond)}
@@ -105,8 +129,13 @@
 
       <aside id="hud" class="mono">
         <div class="panel">[ VITALS ]
-HP: <span id="hp"></span>/<span id="hpMax"></span>  Stam: <span id="stam"></span>/<span id="stamMax"></span>  Hunger: <span id="hunger"></span>/<span id="hungerMax"></span>
-STR:<span id="str"></span>  INT:<span id="int"></span>  AGI:<span id="agi"></span></div>
+<div class="stat-row"><span>HP:</span><span><span id="hp"></span>/<span id="hpMax"></span></span></div>
+<div class="progress-bar"><div class="progress-fill progress-hp" id="hpBar"></div></div>
+<div class="stat-row"><span>Stamina:</span><span><span id="stam"></span>/<span id="stamMax"></span></span></div>
+<div class="progress-bar"><div class="progress-fill progress-stam" id="stamBar"></div></div>
+<div class="stat-row"><span>Hunger:</span><span><span id="hunger"></span>/<span id="hungerMax"></span></span></div>
+<div class="progress-bar"><div class="progress-fill progress-hunger" id="hungerBar"></div></div>
+<div style="margin-top:6px;font-size:13px">STR:<span id="str"></span>  INT:<span id="int"></span>  AGI:<span id="agi"></span></div></div>
         
         <div class="panel">[ TOOLS ]
 <div class="toolBar">
@@ -142,6 +171,9 @@ Depth: <span id="depth">Z=0</span></div>
 
     <footer class="mono dim">Lost Poets v0.3 — Living World Simulation</footer>
   </div>
+
+  <!-- Particle Effects Container -->
+  <div id="particleContainer" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:999"></div>
 
   <!-- Crafting Menu Modal -->
   <div id="craftingOverlay" class="modal-overlay">
@@ -551,7 +583,17 @@ const TILES = {
   STAIRS_UP:   {ch:'<', walk:true, cls:'stairsup', color:'#fd6'},
   STAIRS_DOWN: {ch:'>', walk:true, cls:'stairsdown', color:'#d84'},
   GLOWSHROOM:  {ch:';', walk:true, cls:'glowshroom', color:'#9c9'},
-  LIMESTONE:   {ch:'○', walk:true, cls:'limestone', color:'#bbb'}
+  LIMESTONE:   {ch:'○', walk:true, cls:'limestone', color:'#bbb'},
+  // New enhanced tiles
+  WATER:       {ch:'≈', walk:false, cls:'water', color:'#49d'},
+  LAVA:        {ch:'≈', walk:false, cls:'lava', color:'#f50', dig:false, hp:999},
+  CRYSTAL_WALL:{ch:'◆', walk:false, cls:'crystal', color:'#c9f', dig:true, hp:20},
+  MAGMA_ROCK:  {ch:'▓', walk:false, cls:'magma', color:'#f30', dig:true, hp:15},
+  DEEP_WALL:   {ch:'█', walk:false, cls:'', color:'#222', dig:true, hp:25},
+  GRASS:       {ch:'″', walk:true, cls:'herb', color:'#6b6'},
+  FLOWER:      {ch:'❀', walk:true, cls:'herb', color:'#f9a'},
+  MUSHROOM:    {ch:'♠', walk:true, cls:'item', color:'#c86'},
+  CRYSTAL_FLOOR:{ch:'·', walk:true, cls:'crystal', color:'#8bf'}
 };
 
 // ========== RECIPES ==========
@@ -617,6 +659,26 @@ const RESOURCE_INFO = {
   cookedMeat: {name:'Cooked Meat', tier:'refined', desc:'Nourishing meal', glyph:'⚈', color:'#b86'}
 };
 
+// ========== ACHIEVEMENTS & QUESTS ==========
+const ACHIEVEMENTS = {
+  firstBlood: {name:'First Blood', desc:'Defeat your first creature', icon:'⚔', unlocked:false},
+  deepExplorer: {name:'Deep Explorer', desc:'Reach Z=-3 or deeper', icon:'↓', unlocked:false},
+  masterCrafter: {name:'Master Crafter', desc:'Craft 10 different items', icon:'⚒', unlocked:false},
+  hoarder: {name:'Hoarder', desc:'Collect 100 of any resource', icon:'$', unlocked:false},
+  survivor: {name:'Survivor', desc:'Survive 500 turns', icon:'⏱', unlocked:false},
+  legendary: {name:'Legendary', desc:'Craft the Legendary Blade', icon:'⚡', unlocked:false},
+  forager: {name:'Forager', desc:'Gather 50 food items', icon:'♠', unlocked:false},
+  illuminator: {name:'Illuminator', desc:'Place 10 torches', icon:'⚍', unlocked:false}
+};
+
+const QUESTS = {
+  templeKey: {name:'Temple Access', desc:'Craft a key to unlock the temple door', complete:false, reward:{exp:10}},
+  firstTool: {name:'Tool Up', desc:'Craft your first weapon or tool', complete:false, reward:{exp:5}},
+  deepDescent: {name:'Into the Depths', desc:'Explore the caverns below (Z=-1)', complete:false, reward:{exp:15}},
+  rareMaterial: {name:'Rare Discovery', desc:'Find a rare gem (diamond, ruby, or crystal)', complete:false, reward:{exp:20}},
+  masterWork: {name:'Masterwork', desc:'Craft an advanced or master tier item', complete:false, reward:{exp:50}}
+};
+
 // ========== STATE ==========
 const state = {
   seed: (Date.now()%2147483647),
@@ -634,6 +696,9 @@ const state = {
   entities: [], // {type, x, y, hp, glyph, state: 'idle'|'hunting'|'fleeing'|'resting'}
   items: [], // {type, x, y, glyph}
   placedLights: [], // {x, y, radius, type}
+  achievements: {...ACHIEVEMENTS}, // Track unlocked achievements
+  quests: {...QUESTS}, // Track quest progress
+  stats: {creaturesDefeated:0, itemsCrafted:0, foodGathered:0, torchesPlaced:0, deepestLevel:0, uniqueCrafts:new Set()},
   log: [],
   turns: 0,
   currentLightDelta: 0,
@@ -1825,15 +1890,16 @@ function countWallNeighbors(map, x, y){
 
 function generateCavernLayer(z){
   const w = FOREST_W, h = FOREST_H;
+  const isLavaLayer = z <= -4; // Lava caverns at Z=-4 and below
   
-  // Step 1: Random noise fill (45% walls)
+  // Step 1: Random noise fill (45% walls, or deep walls for lava layers)
   let map = Array.from({length:h}, ()=>Array(w).fill(null));
   for(let y=0; y<h; y++){
     for(let x=0; x<w; x++){
       if(y===0 || x===0 || y===h-1 || x===w-1){
-        map[y][x] = TILES.WALL; // Border always walls
+        map[y][x] = isLavaLayer ? TILES.DEEP_WALL : TILES.WALL; // Border always walls
       } else {
-        map[y][x] = rf() < 0.45 ? TILES.WALL : TILES.FLOOR;
+        map[y][x] = rf() < 0.45 ? (isLavaLayer ? TILES.MAGMA_ROCK : TILES.WALL) : TILES.FLOOR;
       }
     }
   }
@@ -1844,21 +1910,51 @@ function generateCavernLayer(z){
     for(let y=1; y<h-1; y++){
       for(let x=1; x<w-1; x++){
         const wallCount = countWallNeighbors(map, x, y);
-        if(wallCount >= 5) newMap[y][x] = TILES.WALL;
+        const wallType = isLavaLayer ? TILES.MAGMA_ROCK : TILES.WALL;
+        if(wallCount >= 5) newMap[y][x] = wallType;
         else newMap[y][x] = TILES.FLOOR;
       }
     }
     map = newMap;
   }
   
-  // Step 3: Embed handcrafted shrine
-  embedForgottenShrine(map);
+  // Step 3: Add lava pools for deep layers
+  if(isLavaLayer){
+    for(let i=0; i<20; i++){
+      const cx = 10 + Math.floor(rf() * (w - 20));
+      const cy = 10 + Math.floor(rf() * (h - 20));
+      // Create small lava pools
+      for(let dy=-2; dy<=2; dy++){
+        for(let dx=-2; dx<=2; dx++){
+          if(Math.abs(dx)+Math.abs(dy) <= 3 && map[cy+dy] && map[cy+dy][cx+dx] === TILES.FLOOR){
+            if(rf() < 0.6) map[cy+dy][cx+dx] = TILES.LAVA;
+          }
+        }
+      }
+    }
+  }
   
-  // Step 4: Place stairs
+  // Step 4: Embed handcrafted shrine (only at Z=-1)
+  if(z === -1){
+    embedForgottenShrine(map);
+  }
+  
+  // Step 5: Add crystal formations for mid-depth layers
+  if(z <= -2 && z >= -3){
+    for(let i=0; i<15; i++){
+      const x = 5 + Math.floor(rf() * (w - 10));
+      const y = 5 + Math.floor(rf() * (h - 10));
+      if(map[y][x] === TILES.WALL){
+        map[y][x] = TILES.CRYSTAL_WALL;
+      }
+    }
+  }
+  
+  // Step 6: Place stairs
   map[60][60] = TILES.STAIRS_UP;
   map[80][80] = TILES.STAIRS_DOWN;
   
-  // Step 5: Populate with resources/creatures
+  // Step 7: Populate with resources/creatures
   populateCaverns(map, z);
   
   return map;
@@ -2122,6 +2218,7 @@ function useClub(x,y){
     if(ent.hp<=0){
       log(`<span class="unlockMsg">The ${ent.type} is defeated!</span>`);
       state.entities = state.entities.filter(e=>e!==ent);
+      state.stats.creaturesDefeated++;
       if(!state.tutorial.didStrike){
         state.tutorial.didStrike=true;
         log('<span class="unlockMsg">✓ Tutorial: Learned to strike!</span>');
@@ -2286,6 +2383,10 @@ function craftRecipe(recipeId){
       state.inventory.push(item);
       log(`<span class="unlockMsg">You craft ${item.name}!</span>`);
       
+      // Track crafting stats
+      state.stats.itemsCrafted++;
+      state.stats.uniqueCrafts.add(item.name);
+      
       // Tutorial tracking
       if(item.type==='spade' && !state.tutorial.didCraftAxe){
         state.tutorial.didCraftAxe = true;
@@ -2302,6 +2403,10 @@ function craftRecipe(recipeId){
     } else {
       state.resources[output] = (state.resources[output] || 0) + amount;
       log(`<span class="unlockMsg">You craft ${RESOURCE_INFO[output]?.name || output}!</span>`);
+      
+      // Track crafting stats
+      state.stats.itemsCrafted++;
+      state.stats.uniqueCrafts.add(output);
       
       if(output === 'key' && !state.tutorial.didCraftKey){
         state.tutorial.didCraftKey = true;
@@ -2474,6 +2579,12 @@ function pickup(){
       } else {
         state.resources[item.type] = amount;
       }
+      
+      // Track food gathering
+      if(['berry', 'meat', 'cookedMeat'].includes(item.type)){
+        state.stats.foodGathered++;
+      }
+      
       state.items = state.items.filter(i=>i!==item);
       log(`Picked up ${item.type}${bonusYield ? ` (+${amount} [Bonus!])` : ''}.`);
     }
@@ -2501,6 +2612,7 @@ function placeTorch(){
   // Place the torch
   state.resources.torch--;
   state.placedLights.push({x:px, y:py, radius:5, type:'torch'});
+  state.stats.torchesPlaced++;
   log('<span class="unlockMsg">You place a torch. It illuminates the area!</span>');
   worldTick();
 }
@@ -2563,6 +2675,17 @@ function worldTick(){
   if(state.turns%100===0) updateDayNightCycle();
   if(state.turns%150===0) updateWeather();
   if(state.turns%50===0) triggerRandomEvent();
+  
+  // Check achievements and quests periodically
+  if(state.turns%10===0){
+    checkAchievements();
+    checkQuests();
+  }
+  
+  // Track deepest level
+  if(state.zlevel < state.stats.deepestLevel){
+    state.stats.deepestLevel = state.zlevel;
+  }
   
   render();
 }
@@ -2925,7 +3048,7 @@ function render(){
 }
 
 function updateHUD(){
-  hp.textContent = state.player.hp;
+  hp.textContent = Math.round(state.player.hp);
   hpMax.textContent = state.player.hpMax;
   stam.textContent = state.player.stamina.toFixed(1);
   stamMax.textContent = state.player.stamMax;
@@ -2934,6 +3057,14 @@ function updateHUD(){
   str.textContent = pad(state.player.str,2);
   int_.textContent = pad(state.player.int,2);
   agi.textContent = pad(state.player.agi,2);
+  
+  // Update progress bars
+  const hpBar = document.getElementById('hpBar');
+  const stamBar = document.getElementById('stamBar');
+  const hungerBar = document.getElementById('hungerBar');
+  if(hpBar) hpBar.style.width = `${(state.player.hp / state.player.hpMax) * 100}%`;
+  if(stamBar) stamBar.style.width = `${(state.player.stamina / state.player.stamMax) * 100}%`;
+  if(hungerBar) hungerBar.style.width = `${(state.player.hunger / state.player.hungerMax) * 100}%`;
   
   activeTool.textContent = toolName(state.activeTool);
   
@@ -2980,6 +3111,133 @@ function updateHUD(){
 
 function pad(v,n){ return (''+Math.round(v)).padStart(n,' '); }
 function log(msg){ state.log.push(msg); if(state.log.length>100) state.log.shift(); }
+
+// ========== PARTICLE EFFECTS SYSTEM ==========
+const particleSystem = {
+  container: null,
+  
+  init(){
+    this.container = document.getElementById('particleContainer');
+  },
+  
+  showDamage(x, y, amount){
+    if(!this.container) return;
+    const el = document.createElement('div');
+    el.className = 'damage-number';
+    el.textContent = `-${amount}`;
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    this.container.appendChild(el);
+    setTimeout(() => el.remove(), 1000);
+  },
+  
+  showHeal(x, y, amount){
+    if(!this.container) return;
+    const el = document.createElement('div');
+    el.className = 'heal-number';
+    el.textContent = `+${amount}`;
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    this.container.appendChild(el);
+    setTimeout(() => el.remove(), 1000);
+  },
+  
+  showSparkle(x, y, text='✧'){
+    if(!this.container) return;
+    const el = document.createElement('div');
+    el.className = 'sparkle-effect';
+    el.textContent = text;
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    this.container.appendChild(el);
+    setTimeout(() => el.remove(), 600);
+  },
+  
+  showEffect(x, y, text, color='#fc6', duration=800){
+    if(!this.container) return;
+    const el = document.createElement('div');
+    el.style.position = 'absolute';
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.style.color = color;
+    el.style.fontWeight = 'bold';
+    el.style.pointerEvents = 'none';
+    el.style.zIndex = '100';
+    el.style.animation = 'floatUp 1s ease-out forwards';
+    el.textContent = text;
+    this.container.appendChild(el);
+    setTimeout(() => el.remove(), duration);
+  }
+};
+
+// ========== ACHIEVEMENT SYSTEM ==========
+function checkAchievements(){
+  // Check all achievement conditions
+  if(!state.achievements.firstBlood.unlocked && state.stats.creaturesDefeated >= 1){
+    unlockAchievement('firstBlood');
+  }
+  if(!state.achievements.deepExplorer.unlocked && state.zlevel <= -3){
+    unlockAchievement('deepExplorer');
+  }
+  if(!state.achievements.masterCrafter.unlocked && state.stats.uniqueCrafts.size >= 10){
+    unlockAchievement('masterCrafter');
+  }
+  if(!state.achievements.hoarder.unlocked){
+    for(const [res, amt] of Object.entries(state.resources)){
+      if(amt >= 100){
+        unlockAchievement('hoarder');
+        break;
+      }
+    }
+  }
+  if(!state.achievements.survivor.unlocked && state.turns >= 500){
+    unlockAchievement('survivor');
+  }
+  if(!state.achievements.forager.unlocked && state.stats.foodGathered >= 50){
+    unlockAchievement('forager');
+  }
+  if(!state.achievements.illuminator.unlocked && state.stats.torchesPlaced >= 10){
+    unlockAchievement('illuminator');
+  }
+  // Check for legendary blade in inventory
+  if(!state.achievements.legendary.unlocked && state.inventory.some(i=>i.name==='Legendary Blade')){
+    unlockAchievement('legendary');
+  }
+}
+
+function unlockAchievement(achId){
+  if(!state.achievements[achId]) return;
+  state.achievements[achId].unlocked = true;
+  const ach = state.achievements[achId];
+  log(`<span style="color:#fc0;font-weight:bold">🏆 ACHIEVEMENT UNLOCKED: ${ach.name}</span>`);
+  log(`<span style="color:#da6">${ach.icon} ${ach.desc}</span>`);
+}
+
+function checkQuests(){
+  // Check quest completion conditions
+  if(!state.quests.templeKey.complete && state.resources.key > 0){
+    completeQuest('templeKey');
+  }
+  if(!state.quests.firstTool.complete && state.inventory.length > 0){
+    completeQuest('firstTool');
+  }
+  if(!state.quests.deepDescent.complete && state.zlevel <= -1){
+    completeQuest('deepDescent');
+  }
+  if(!state.quests.rareMaterial.complete){
+    if(state.resources.diamond > 0 || state.resources.ruby > 0 || state.resources.crystal > 0){
+      completeQuest('rareMaterial');
+    }
+  }
+}
+
+function completeQuest(questId){
+  if(!state.quests[questId] || state.quests[questId].complete) return;
+  state.quests[questId].complete = true;
+  const quest = state.quests[questId];
+  log(`<span style="color:#5ad;font-weight:bold">✓ QUEST COMPLETED: ${quest.name}</span>`);
+  log(`<span style="color:#7df">${quest.desc}</span>`);
+}
 
 function toggleHelp(){
   state.helpOpen = !state.helpOpen;
@@ -3627,8 +3885,9 @@ const audioSystem = {
   render();
   view.focus();
   
-  // Initialize audio system
+  // Initialize systems
   audioSystem.init();
+  particleSystem.init();
 })();
 </script>
 </body>
