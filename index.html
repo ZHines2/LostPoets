@@ -37,6 +37,7 @@
     .soft{color:#964} .rubble{color:#753} .ore{color:#da6} .herb{color:#7b7} .bench{color:#69d}
     .door{color:#d84} .tree{color:#484} .entity{color:#d55; font-weight:bold}
     .item{color:#fc6}
+    .stairsup{color:#fd6} .stairsdown{color:#d84} .glowshroom{color:#9c9} .limestone{color:#bbb}
 
     /* Tool colors */
     .toolSpade{color:var(--spade)} .toolClub{color:var(--club)} .toolHeart{color:var(--heart)} .toolDiamond{color:var(--diamond)}
@@ -104,7 +105,7 @@
 
       <aside id="hud" class="mono">
         <div class="panel">[ VITALS ]
-HP: <span id="hp"></span>/<span id="hpMax"></span>  Stam: <span id="stam"></span>/<span id="stamMax"></span>
+HP: <span id="hp"></span>/<span id="hpMax"></span>  Stam: <span id="stam"></span>/<span id="stamMax"></span>  Hunger: <span id="hunger"></span>/<span id="hungerMax"></span>
 STR:<span id="str"></span>  INT:<span id="int"></span>  AGI:<span id="agi"></span></div>
         
         <div class="panel">[ TOOLS ]
@@ -121,7 +122,8 @@ Active: <span id="activeTool"></span></div>
 
         <div class="panel" id="envPanel">[ ENVIRONMENT ]
 Time: <span id="timeOfDay"></span>
-Weather: <span id="weather"></span></div>
+Weather: <span id="weather"></span>
+Depth: <span id="depth">Z=0</span></div>
 
         <div class="panel">[ TUTORIAL ]
 <span id="tutDig"></span> Dig soft wall
@@ -132,7 +134,7 @@ Weather: <span id="weather"></span></div>
 
         <div class="panel dim">[ CONTROLS ]
 <kbd>H</kbd>/<kbd>K</kbd> Help · <kbd>I</kbd> Inventory
-<kbd>G</kbd> Pick up · <kbd>P</kbd> Place torch
+<kbd>G</kbd> Pick up · <kbd>F</kbd> Eat · <kbd>P</kbd> Place torch
 <kbd>R</kbd> Rest · <kbd>O</kbd> Observe · <kbd>V</kbd> Vis toggle
 <kbd>L</kbd> Secret Lab</div>
       </aside>
@@ -188,6 +190,7 @@ Weather: <span id="weather"></span></div>
       <li>&nbsp;&nbsp;• <strong>4=♦Diamond</strong> - Craft at workbench (choose recipes!)</li>
       <li><strong>Use Tool:</strong> Shift+Direction or E (facing dir)</li>
       <li><strong>Actions:</strong> G=Pick up, P=Place torch, R=Rest, O=Observe, .=Wait, I=Inventory, L=Teleport to Lab</li>
+      <li><strong>Stairs:</strong> Shift+&gt; descend, Shift+&lt; ascend</li>
       <li><strong>AI Driver (Autonomous Play):</strong></li>
       <li>&nbsp;&nbsp;• <strong>[</strong> = Toggle AI on/off (starts in explore mode)</li>
       <li>&nbsp;&nbsp;• <strong>]</strong> = Show AI statistics</li>
@@ -265,7 +268,11 @@ const TILES = {
   TREE:     {ch:'T', walk:false, cls:'tree'},
   PLAYER:   {ch:'@', walk:true, cls:''},
   WOOD:     {ch:'w', walk:true, cls:'item'},
-  TORCH:    {ch:'⚍', walk:true, cls:'item'}
+  TORCH:    {ch:'⚍', walk:true, cls:'item'},
+  STAIRS_UP:   {ch:'<', walk:true, cls:'stairsup', color:'#fd6'},
+  STAIRS_DOWN: {ch:'>', walk:true, cls:'stairsdown', color:'#d84'},
+  GLOWSHROOM:  {ch:';', walk:true, cls:'glowshroom', color:'#9c9'},
+  LIMESTONE:   {ch:'○', walk:true, cls:'limestone', color:'#bbb'}
 };
 
 // ========== RECIPES ==========
@@ -275,6 +282,7 @@ const RECIPES = {
   keyAlt: {name:'Key (alt)', inputs:{herb:1, scrap:1}, outputs:{key:1}, desc:'Unlocks doors'},
   axe: {name:'Iron Axe', inputs:{wood:2, ore:1}, outputs:{inventory:1}, desc:'Augments Spade (+1)', makeItem:()=>({name:'Iron Axe', type:'spade', bonus:1})},
   torch: {name:'Torch', inputs:{wood:1, coal:1}, outputs:{torch:1}, desc:'Placeable light source (+3 radius)', placeableLight:true},
+  cookedMeat: {name:'Cooked Meat', inputs:{meat:1, coal:1}, outputs:{cookedMeat:1}, desc:'Restores hunger & stamina'},
   
   // Intermediate Recipes (unlock after first craft)
   hammer: {name:'Heavy Hammer', inputs:{wood:1, ore:2}, outputs:{inventory:1}, desc:'Augments Club (+2)', makeItem:()=>({name:'Heavy Hammer', type:'club', bonus:2})},
@@ -317,20 +325,32 @@ const RESOURCE_INFO = {
   ruby: {name:'Ruby', tier:'rare', desc:'Red gemstone', glyph:'♦', color:'#f44'},
   gold: {name:'Gold', tier:'rare', desc:'Precious metal', glyph:'$', color:'#fc0'},
   crystal: {name:'Crystal', tier:'rare', desc:'Magic crystal', glyph:'✦', color:'#c9f'},
-  obsidian: {name:'Obsidian', tier:'rare', desc:'Volcanic glass', glyph:'■', color:'#222'}
+  obsidian: {name:'Obsidian', tier:'rare', desc:'Volcanic glass', glyph:'■', color:'#222'},
+  
+  // Cave resources
+  glowshroom: {name:'Glowshroom', tier:'basic', desc:'Glowing fungus', glyph:';', color:'#9c9'},
+  limestone: {name:'Limestone', tier:'refined', desc:'Cave stone', glyph:'○', color:'#bbb'},
+  deepore: {name:'Deep Ore', tier:'rare', desc:'Rich ore vein', glyph:'*', color:'#fc0'},
+  
+  // Food resources
+  berry: {name:'Berry', tier:'basic', desc:'Wild berries', glyph:'●', color:'#d46'},
+  meat: {name:'Raw Meat', tier:'basic', desc:'Uncooked meat', glyph:'⚇', color:'#b44'},
+  cookedMeat: {name:'Cooked Meat', tier:'refined', desc:'Nourishing meal', glyph:'⚈', color:'#b86'}
 };
 
 // ========== STATE ==========
 const state = {
   seed: (Date.now()%2147483647),
   map: [],
+  zlevel: 0, // Current depth: 0=surface, -1=first cavern, -2=deeper, etc
+  layers: {}, // Store generated maps for each Z-level
   visibilityOn: true,
   seen: new Set(),
-  player: {x:2, y:1, hp:10, hpMax:10, str:5, int:5, agi:5, stamina:10, stamMax:10, facing:{dx:0,dy:1}},
+  player: {x:2, y:1, hp:10, hpMax:10, str:5, int:5, agi:5, stamina:10, stamMax:10, hunger:100, hungerMax:100, facing:{dx:0,dy:1}},
   region: {type:'forest', width:FOREST_W, height:FOREST_H, camX:0, camY:0},
   activeTool: 1, // 1=Spade, 2=Club, 3=Heart, 4=Diamond
   tutorial: {didDig:false, didStrike:false, didFocus:false, didCraftKey:false, didCraftAxe:false},
-  resources: {ore:0, herb:0, scrap:0, key:0, wood:0, coal:0, cloth:0, leather:0, diamond:0, ruby:0, gold:0, crystal:0, obsidian:0, torch:0},
+  resources: {ore:0, herb:0, scrap:0, key:0, wood:0, coal:0, cloth:0, leather:0, diamond:0, ruby:0, gold:0, crystal:0, obsidian:0, torch:0, glowshroom:0, limestone:0, deepore:0, berry:0, meat:0, cookedMeat:0},
   inventory: [], // Items that augment tool abilities: {name, type, bonus, special}
   entities: [], // {type, x, y, hp, glyph, state: 'idle'|'hunting'|'fleeing'|'resting'}
   items: [], // {type, x, y, glyph}
@@ -494,10 +514,21 @@ function performMove(actor, action){
   actor.x = nx;
   actor.y = ny;
   
+  // Stamina cost based on agility (higher AGI = lower cost)
+  const baseCost = 0.5;
+  const agiBonus = Math.max(0, (actor.agi - 5) * 0.05); // Every point above 5 reduces cost by 5%
+  const staminaCost = Math.max(0.1, baseCost - agiBonus);
+  actor.stamina = Math.max(0, actor.stamina - staminaCost);
+  
   // Micro stat gain (agility from movement)
   actor.agi = Math.round((actor.agi + 0.01) * 100) / 100;
   
-  // Future: Stamina cost injection, terrain effects, trigger events
+  // Warn if stamina is low
+  if(actor.stamina < 2 && actor.stamina > 0){
+    log('<span style="color:#da6">⚠ Stamina low! Use Heart tool to recover.</span>');
+  } else if(actor.stamina <= 0){
+    log('<span class="warnMsg">⚠ Exhausted! Cannot perform actions until stamina recovers.</span>');
+  }
 }
 
 function performDig(actor, action){
@@ -514,8 +545,10 @@ function performDig(actor, action){
   const bonus = bestTool ? bestTool.bonus : 0;
   const hasMining = tools.some(t=>t.special==='mining');
   
-  // Check stamina for actions that require it
-  const staminaCost = (tile===TILES.SOFT || tile===TILES.WALL) ? 2 : 1;
+  // Check stamina for actions that require it (STR reduces cost)
+  const baseStaminaCost = (tile===TILES.SOFT || tile===TILES.WALL) ? 2 : 1;
+  const strBonus = Math.max(0, (actor.str - 5) * 0.1); // Every point above 5 reduces cost by 10%
+  const staminaCost = Math.max(0.5, baseStaminaCost - strBonus);
   
   if(tile===TILES.SOFT){
     if(actor.stamina < staminaCost){
@@ -525,6 +558,10 @@ function performDig(actor, action){
     actor.stamina -= staminaCost;
     state.map[y][x]=TILES.FLOOR;
     log(`<span class="unlockMsg">You dig away the soft earth with ${tool}.</span>`);
+    
+    // STR gain from physical labor (digging)
+    actor.str = Math.round((actor.str + 0.02) * 100) / 100;
+    
     if(!state.tutorial.didDig){
       state.tutorial.didDig=true;
       log('<span class="unlockMsg">✓ Tutorial: Learned to dig!</span>');
@@ -538,6 +575,10 @@ function performDig(actor, action){
     state.map[y][x]=TILES.FLOOR;
     state.resources.scrap++;
     log(`You clear rubble with ${tool}, gaining scrap.`);
+    
+    // STR gain from physical labor (clearing rubble)
+    actor.str = Math.round((actor.str + 0.01) * 100) / 100;
+    
   } else if(tile===TILES.TREE && bestTool){
     if(actor.stamina < staminaCost){
       log('<span class="warnMsg">Not enough stamina to chop!</span>');
@@ -548,6 +589,10 @@ function performDig(actor, action){
     const woodGained = 2 + bonus;
     state.resources.wood += woodGained;
     log(`<span class="unlockMsg">You chop down the tree with ${tool} and collect ${woodGained} wood!</span>`);
+    
+    // STR gain from physical labor (chopping)
+    actor.str = Math.round((actor.str + 0.03) * 100) / 100;
+    
   } else if(tile===TILES.WALL && bestTool){
     if(actor.stamina < staminaCost){
       log('<span class="warnMsg">Not enough stamina to break the wall!</span>');
@@ -571,6 +616,9 @@ function performDig(actor, action){
         log('<span class="unlockMsg">You found coal in the wall!</span>');
       }
     }
+    
+    // STR gain from physical labor (mining/breaking walls)
+    actor.str = Math.round((actor.str + 0.04) * 100) / 100;
   } else {
     log(bestTool ? 'Nothing to dig or chop here.' : 'Nothing to dig here with bare hands.');
   }
@@ -581,16 +629,38 @@ function performAttack(actor, action){
   // action.params: {x, y}
   const {x, y} = action.params;
   
+  // Stamina cost for combat (STR reduces cost)
+  const baseCombatCost = 1.5;
+  const strBonus = Math.max(0, (actor.str - 5) * 0.1);
+  const staminaCost = Math.max(0.5, baseCombatCost - strBonus);
+  
+  if(actor.stamina < staminaCost){
+    log('<span class="warnMsg">Not enough stamina to attack!</span>');
+    return;
+  }
+  
   const ent = state.entities.find(e=>e.x===x&&e.y===y);
   const weapon = state.inventory.find(i=>i.type==='club');
   const tool = weapon ? weapon.name : 'fists';
   const damage = actor.str + (weapon ? weapon.bonus : 0);
   
   if(ent){
+    actor.stamina -= staminaCost;
     ent.hp -= damage;
     log(`You strike the ${ent.type} with ${tool} for ${damage} damage!`);
+    
+    // STR gain from combat
+    actor.str = Math.round((actor.str + 0.03) * 100) / 100;
+    
     if(ent.hp<=0){
       log(`<span class="unlockMsg">The ${ent.type} is defeated!</span>`);
+      
+      // Drop meat from certain creatures
+      if(['rat', 'scav', 'bat', 'mole'].includes(ent.type)){
+        state.items.push({type:'meat', x:ent.x, y:ent.y, glyph:'⚇'});
+        log('<span style="color:#b86">The creature drops raw meat.</span>');
+      }
+      
       state.entities = state.entities.filter(e=>e!==ent);
       if(!state.tutorial.didStrike){
         state.tutorial.didStrike=true;
@@ -614,21 +684,36 @@ function performRest(actor, action){
 }
 
 function performFocus(actor, action){
-  // Execute focus action (heart tool) - restore HP or stamina
+  // Execute focus action (heart tool) - meditation for stamina/HP recovery
+  // INT affects effectiveness of focus
+  const intBonus = Math.max(0, (actor.int - 5) * 0.2); // Every point above 5 adds 20% effectiveness
+  
   if(actor.hp < actor.hpMax && actor.stamina >= 2){
-    actor.hp = Math.min(actor.hpMax, actor.hp + 1);
+    // Heal HP at cost of stamina
+    const healAmount = Math.max(1, Math.floor(1 + intBonus));
+    actor.hp = Math.min(actor.hpMax, actor.hp + healAmount);
     actor.stamina -= 2;
-    log('You focus, restoring 1 HP.');
+    log(`<span class="unlockMsg">You focus your mind, restoring ${healAmount} HP.</span>`);
+    
+    // INT gain from meditation
+    actor.int = Math.round((actor.int + 0.02) * 100) / 100;
+    
   } else if(actor.stamina < actor.stamMax){
-    actor.stamina = Math.min(actor.stamMax, actor.stamina + 3);
-    log('You breathe deeply, restoring stamina.');
+    // Restore stamina through deep breathing/meditation
+    const staminaGain = Math.max(3, Math.floor(3 + intBonus));
+    actor.stamina = Math.min(actor.stamMax, actor.stamina + staminaGain);
+    log(`<span class="unlockMsg">You meditate deeply, restoring ${staminaGain} stamina.</span>`);
+    
+    // INT gain from meditation
+    actor.int = Math.round((actor.int + 0.03) * 100) / 100;
+    
   } else {
     log('You are already at full health and stamina.');
   }
   
   if(!state.tutorial.didFocus){
     state.tutorial.didFocus=true;
-    log('<span class="unlockMsg">✓ Tutorial: Learned Heart technique!</span>');
+    log('<span class="unlockMsg">✓ Tutorial: Learned Heart meditation technique!</span>');
   }
 }
 
@@ -1180,6 +1265,9 @@ function loadForestWithTemple(){
   // Build secret laboratory far away from origin (bottom-right corner)
   buildSecretLaboratory(m);
   
+  // Add stairs down to caverns at (62, 75) - south of temple
+  buildStairsDown(m, 62, 75);
+  
   // Set player position inside temple
   state.player.x = templeOffsetX + 2;
   state.player.y = templeOffsetY + 1;
@@ -1310,6 +1398,12 @@ function generateForest(w=FOREST_W, h=FOREST_H){
     if(m[y][x]===TILES.FLOOR) m[y][x]=TILES.SOFT;
   }
   
+  // Food items scattered in forest
+  for(let i=0; i<40; i++){
+    const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
+    if(m[y][x]===TILES.FLOOR) state.items.push({type:'berry',x,y,glyph:'●'});
+  }
+  
   // Spawn some creatures (more for larger map)
   for(let i=0; i<8; i++){
     const x=10+Math.floor(rf()*(w-20)), y=10+Math.floor(rf()*(h-20));
@@ -1317,6 +1411,254 @@ function generateForest(w=FOREST_W, h=FOREST_H){
   }
   
   return m;
+}
+
+function buildStairsDown(m, x, y){
+  // Build ancient stone ruins with stairs descending into darkness
+  // Clear area and add rubble/stone markers
+  for(let dy=-2; dy<=2; dy++){
+    for(let dx=-2; dx<=2; dx++){
+      const nx = x + dx, ny = y + dy;
+      if(m[ny] && m[ny][nx]){
+        if(dx===0 && dy===0){
+          m[ny][nx] = TILES.STAIRS_DOWN;
+        } else if(Math.abs(dx)<=1 && Math.abs(dy)<=1){
+          m[ny][nx] = TILES.FLOOR;
+        } else {
+          m[ny][nx] = TILES.RUBBLE;
+        }
+      }
+    }
+  }
+}
+
+// ========== Z-LEVEL SYSTEM ==========
+
+function findStairsUp(map){
+  for(let y=0; y<map.length; y++){
+    for(let x=0; x<map[0].length; x++){
+      if(map[y][x] === TILES.STAIRS_UP){
+        return {x, y};
+      }
+    }
+  }
+  return {x:60, y:60}; // Default fallback
+}
+
+function findStairsDown(map){
+  for(let y=0; y<map.length; y++){
+    for(let x=0; x<map[0].length; x++){
+      if(map[y][x] === TILES.STAIRS_DOWN){
+        return {x, y};
+      }
+    }
+  }
+  return {x:62, y:75}; // Default fallback
+}
+
+function descendStairs(){
+  const tx = state.player.x;
+  const ty = state.player.y;
+  const tile = state.map[ty][tx];
+  
+  if(tile !== TILES.STAIRS_DOWN){
+    log('No stairs down here.');
+    return;
+  }
+  
+  const targetZ = state.zlevel - 1;
+  
+  // Generate layer if first visit
+  if(!state.layers[targetZ]){
+    log(`Generating cavern layer Z=${targetZ}...`);
+    state.layers[targetZ] = generateCavernLayer(targetZ);
+  }
+  
+  // Save current layer
+  state.layers[state.zlevel] = state.map;
+  
+  // Switch to target layer
+  state.zlevel = targetZ;
+  state.map = state.layers[targetZ];
+  
+  // Place player at stairs-up position in new layer
+  const stairsUp = findStairsUp(state.map);
+  state.player.x = stairsUp.x;
+  state.player.y = stairsUp.y;
+  
+  log(`<span class="unlockMsg">You descend into the depths... [Z=${state.zlevel}]</span>`);
+  updateCamera();
+  render();
+}
+
+function ascendStairs(){
+  const tx = state.player.x;
+  const ty = state.player.y;
+  const tile = state.map[ty][tx];
+  
+  if(tile !== TILES.STAIRS_UP){
+    log('No stairs up here.');
+    return;
+  }
+  
+  if(state.zlevel >= 0){
+    log('Already at the surface.');
+    return;
+  }
+  
+  const targetZ = state.zlevel + 1;
+  
+  // Save current layer
+  state.layers[state.zlevel] = state.map;
+  
+  // Switch to target layer
+  state.zlevel = targetZ;
+  state.map = state.layers[targetZ];
+  
+  // Place player at stairs-down position in target layer
+  const stairsDown = findStairsDown(state.map);
+  state.player.x = stairsDown.x;
+  state.player.y = stairsDown.y;
+  
+  log(`<span class="unlockMsg">You ascend back toward the surface... [Z=${state.zlevel}]</span>`);
+  updateCamera();
+  render();
+}
+
+function countWallNeighbors(map, x, y){
+  let count = 0;
+  for(let dy=-1; dy<=1; dy++){
+    for(let dx=-1; dx<=1; dx++){
+      if(dx===0 && dy===0) continue;
+      if(map[y+dy] && map[y+dy][x+dx] === TILES.WALL) count++;
+    }
+  }
+  return count;
+}
+
+function generateCavernLayer(z){
+  const w = FOREST_W, h = FOREST_H;
+  
+  // Step 1: Random noise fill (45% walls)
+  let map = Array.from({length:h}, ()=>Array(w).fill(null));
+  for(let y=0; y<h; y++){
+    for(let x=0; x<w; x++){
+      if(y===0 || x===0 || y===h-1 || x===w-1){
+        map[y][x] = TILES.WALL; // Border always walls
+      } else {
+        map[y][x] = rf() < 0.45 ? TILES.WALL : TILES.FLOOR;
+      }
+    }
+  }
+  
+  // Step 2: Cellular automata smoothing (5 passes)
+  for(let pass=0; pass<5; pass++){
+    const newMap = map.map(row => row.slice());
+    for(let y=1; y<h-1; y++){
+      for(let x=1; x<w-1; x++){
+        const wallCount = countWallNeighbors(map, x, y);
+        if(wallCount >= 5) newMap[y][x] = TILES.WALL;
+        else newMap[y][x] = TILES.FLOOR;
+      }
+    }
+    map = newMap;
+  }
+  
+  // Step 3: Embed handcrafted shrine
+  embedForgottenShrine(map);
+  
+  // Step 4: Place stairs
+  map[60][60] = TILES.STAIRS_UP;
+  map[80][80] = TILES.STAIRS_DOWN;
+  
+  // Step 5: Populate with resources/creatures
+  populateCaverns(map, z);
+  
+  return map;
+}
+
+function embedForgottenShrine(map){
+  const sx = 55, sy = 55;
+  const shrineLayout = [
+    "###############",
+    "#.............#",
+    "#.....===.....#",
+    "#.............#",
+    "#..*.......*..#",
+    "#.............#",
+    "#......□......#",
+    "#.............#",
+    "#..;;;...;;;..#",
+    "#.............#",
+    "###############"
+  ];
+  
+  for(let dy=0; dy<shrineLayout.length; dy++){
+    for(let dx=0; dx<shrineLayout[0].length; dx++){
+      const ch = shrineLayout[dy][dx];
+      const mx = sx + dx, my = sy + dy;
+      
+      if(ch==='#') map[my][mx] = TILES.WALL;
+      else if(ch==='.') map[my][mx] = TILES.FLOOR;
+      else if(ch==='=') map[my][mx] = TILES.BENCH;
+      else if(ch==='*'){
+        map[my][mx] = TILES.FLOOR;
+        state.items.push({type:'deepore',x:mx,y:my,glyph:'*'});
+      }
+      else if(ch===';'){
+        map[my][mx] = TILES.FLOOR;
+        state.items.push({type:'glowshroom',x:mx,y:my,glyph:';'});
+      }
+      else if(ch==='□'){
+        map[my][mx] = TILES.FLOOR;
+        state.items.push({type:'tablet',x:mx,y:my,glyph:'□'});
+      }
+    }
+  }
+}
+
+function populateCaverns(map, z){
+  const w = map[0].length, h = map.length;
+  
+  // Glowshrooms (30 scattered)
+  for(let i=0; i<30; i++){
+    const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
+    if(map[y][x]===TILES.FLOOR && !state.items.find(it=>it.x===x&&it.y===y)){
+      state.items.push({type:'glowshroom',x,y,glyph:';'});
+    }
+  }
+  
+  // Deep ore veins (20 scattered)
+  for(let i=0; i<20; i++){
+    const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
+    if(map[y][x]===TILES.FLOOR && !state.items.find(it=>it.x===x&&it.y===y)){
+      state.items.push({type:'deepore',x,y,glyph:'*'});
+    }
+  }
+  
+  // Limestone (50 scattered)
+  for(let i=0; i<50; i++){
+    const x=1+Math.floor(rf()*(w-2)), y=1+Math.floor(rf()*(h-2));
+    if(map[y][x]===TILES.FLOOR && !state.items.find(it=>it.x===x&&it.y===y)){
+      state.items.push({type:'limestone',x,y,glyph:'○'});
+    }
+  }
+  
+  // Cave bats (5 spawned)
+  for(let i=0; i<5; i++){
+    const x=10+Math.floor(rf()*(w-20)), y=10+Math.floor(rf()*(h-20));
+    if(map[y][x]===TILES.FLOOR){
+      state.entities.push({type:'bat',x,y,hp:2,agi:6,glyph:'b',state:'idle'});
+    }
+  }
+  
+  // Blind moles (3 spawned)
+  for(let i=0; i<3; i++){
+    const x=10+Math.floor(rf()*(w-20)), y=10+Math.floor(rf()*(h-20));
+    if(map[y][x]===TILES.FLOOR){
+      state.entities.push({type:'mole',x,y,hp:8,agi:2,glyph:'m',state:'idle'});
+    }
+  }
 }
 
 function updateCamera(){
@@ -1634,10 +1976,21 @@ function craftRecipe(recipeId){
     return;
   }
   
+  // INT affects crafting success - chance for bonus materials saved
+  const intBonus = Math.max(0, (state.player.int - 5) * 0.05); // 5% per INT above 5
+  const saveMaterials = rf() < intBonus;
+  
   // Consume inputs
   for(const [resource, amount] of Object.entries(recipe.inputs)){
-    state.resources[resource] -= amount;
+    const consumed = saveMaterials ? Math.max(1, amount - 1) : amount;
+    state.resources[resource] -= consumed;
+    if(saveMaterials && consumed < amount){
+      log(`<span style="color:#5ad">Your skill saves ${amount - consumed} ${resource}!</span>`);
+    }
   }
+  
+  // INT gain from crafting
+  state.player.int = Math.round((state.player.int + 0.02) * 100) / 100;
   
   // Produce outputs
   for(const [output, amount] of Object.entries(recipe.outputs)){
@@ -1756,16 +2109,87 @@ function observe(){
   render();
 }
 
+function eat(){
+  // Try to eat food in priority order: cooked meat > raw meat > berries
+  let foodEaten = null;
+  let hungerRestore = 0;
+  let staminaBoost = 0;
+  
+  if(state.resources.cookedMeat > 0){
+    state.resources.cookedMeat--;
+    foodEaten = 'Cooked Meat';
+    hungerRestore = 40;
+    staminaBoost = 5;
+  } else if(state.resources.meat > 0){
+    state.resources.meat--;
+    foodEaten = 'Raw Meat';
+    hungerRestore = 25;
+    staminaBoost = 2;
+    // Chance of getting sick from raw meat
+    if(rf() < 0.3){
+      log('<span style="color:#da6">⚠ The raw meat makes you feel queasy...</span>');
+      state.player.stamina = Math.max(0, state.player.stamina - 1);
+    }
+  } else if(state.resources.berry > 0){
+    state.resources.berry--;
+    foodEaten = 'Berries';
+    hungerRestore = 20;
+    staminaBoost = 2;
+  }
+  
+  if(foodEaten){
+    state.player.hunger = Math.min(state.player.hungerMax, state.player.hunger + hungerRestore);
+    state.player.stamina = Math.min(state.player.stamMax, state.player.stamina + staminaBoost);
+    log(`<span class="unlockMsg">You eat ${foodEaten}. (+${hungerRestore} hunger, +${staminaBoost} stamina)</span>`);
+    
+    if(state.player.hunger >= 70){
+      log('<span style="color:#6d6">You feel well-fed! Stamina regenerates faster.</span>');
+    }
+  } else {
+    log('<span class="warnMsg">No food to eat! Find berries, meat, or cook food.</span>');
+  }
+  
+  worldTick();
+}
+
 function pickup(){
   const item = state.items.find(i=>i.x===state.player.x&&i.y===state.player.y);
   if(item){
-    if(item.type in state.resources){
-      state.resources[item.type]++;
-    } else {
-      state.resources[item.type] = 1;
+    // INT affects resource gathering - chance for bonus yield
+    const intBonus = Math.max(0, (state.player.int - 5) * 0.08); // 8% per INT above 5
+    const bonusYield = rf() < intBonus;
+    
+    // Handle special items
+    if(item.type === 'tablet'){
+      log('<span style="color:#c9f">You read the ancient tablet:</span>');
+      log('<span style="color:#c9f">"The poets fled below when the surface burned..."</span>');
+      log('<span style="color:#c9f">"Seek the deeper sanctums. Truth lies beneath."</span>');
+      state.resources.lore = (state.resources.lore || 0) + 1;
+      state.items = state.items.filter(i=>i!==item);
+      
+      // INT gain from reading lore
+      state.player.int = Math.round((state.player.int + 0.05) * 100) / 100;
     }
-    state.items = state.items.filter(i=>i!==item);
-    log(`Picked up ${item.type}.`);
+    // Handle deepore - yields 2 ore (or 3 with bonus)
+    else if(item.type === 'deepore'){
+      const oreYield = bonusYield ? 3 : 2;
+      state.resources.ore = (state.resources.ore || 0) + oreYield;
+      state.items = state.items.filter(i=>i!==item);
+      log(`<span class="unlockMsg">Picked up deep ore vein! (+${oreYield} ore)${bonusYield ? ' [Bonus!]' : ''}</span>`);
+    }
+    // Regular resources
+    else {
+      const baseAmount = 1;
+      const amount = bonusYield ? baseAmount + 1 : baseAmount;
+      
+      if(item.type in state.resources){
+        state.resources[item.type] += amount;
+      } else {
+        state.resources[item.type] = amount;
+      }
+      state.items = state.items.filter(i=>i!==item);
+      log(`Picked up ${item.type}${bonusYield ? ` (+${amount} [Bonus!])` : ''}.`);
+    }
   } else {
     log('Nothing to pick up here.');
   }
@@ -1823,6 +2247,26 @@ function worldTick(){
   
   updateCamera();
   state.turns++;
+  
+  // Hunger decreases over time
+  if(state.turns % 5 === 0 && state.player.hunger > 0){
+    const oldHunger = state.player.hunger;
+    state.player.hunger = Math.max(0, state.player.hunger - 0.5);
+    
+    // Warn when crossing hunger thresholds
+    if(oldHunger >= 30 && state.player.hunger < 30){
+      log('<span style="color:#da6">⚠ You are getting hungry! Find food or eat (F key).</span>');
+    } else if(oldHunger >= 10 && state.player.hunger < 10){
+      log('<span class="warnMsg">⚠ You are starving! Stamina regeneration is very slow.</span>');
+    }
+  }
+  
+  // Passive stamina regeneration (scales with hunger level)
+  if(state.turns % 3 === 0 && state.player.stamina < state.player.stamMax){
+    const hungerBonus = state.player.hunger / state.player.hungerMax; // 0 to 1
+    const regenRate = 0.2 * (0.5 + hungerBonus); // 0.1 when starving to 0.4 when well-fed
+    state.player.stamina = Math.min(state.player.stamMax, state.player.stamina + regenRate);
+  }
   
   // Forest simulation (always active now)
   if(state.turns%2===0) simulateCreatures();
@@ -2160,22 +2604,29 @@ function render(){
         const item = state.items.find(i=>i.x===wx&&i.y===wy);
         if(item){
           let cls = 'item';
+          let colorStyle = '';
           if(item.type==='ore') cls = 'ore';
           else if(item.type==='herb') cls = 'herb';
           else if(item.type==='wood') cls = 'item';
-          out += `<span class="${shading} ${cls}">${item.glyph}</span>`;
+          else if(item.type==='glowshroom'){ cls = 'glowshroom'; colorStyle = ' style="color:#9c9"'; }
+          else if(item.type==='deepore'){ cls = 'ore'; colorStyle = ' style="color:#fc0"'; }
+          else if(item.type==='limestone'){ cls = 'limestone'; colorStyle = ' style="color:#bbb"'; }
+          else if(item.type==='tablet'){ cls = 'item'; colorStyle = ' style="color:#c9f"'; }
+          out += `<span class="${shading} ${cls}"${colorStyle}>${item.glyph}</span>`;
           continue;
         }
         
         // Tiles
         const tile = state.map[wy][wx];
-        out += `<span class="${shading} ${tile.cls}">${tile.ch}</span>`;
+        const colorStyle = tile.color ? ` style="color:${tile.color}"` : '';
+        out += `<span class="${shading} ${tile.cls}"${colorStyle}>${tile.ch}</span>`;
       } else {
         if(!seen){
           out += `<span class="fog"> </span>`;
         } else {
           const tile = state.map[wy][wx];
-          out += `<span class="v9 ${tile.cls}">${tile.ch}</span>`;
+          const colorStyle = tile.color ? ` style="color:${tile.color}"` : '';
+          out += `<span class="v9 ${tile.cls}"${colorStyle}>${tile.ch}</span>`;
         }
       }
     }
@@ -2189,8 +2640,10 @@ function render(){
 function updateHUD(){
   hp.textContent = state.player.hp;
   hpMax.textContent = state.player.hpMax;
-  stam.textContent = state.player.stamina;
+  stam.textContent = state.player.stamina.toFixed(1);
   stamMax.textContent = state.player.stamMax;
+  hunger.textContent = Math.floor(state.player.hunger);
+  hungerMax.textContent = state.player.hungerMax;
   str.textContent = pad(state.player.str,2);
   int_.textContent = pad(state.player.int,2);
   agi.textContent = pad(state.player.agi,2);
@@ -2224,10 +2677,15 @@ function updateHUD(){
   tutAxe.innerHTML = state.tutorial.didCraftAxe ? '<span class="flagComplete">✓</span>' : '<span class="flagMissing">✗</span>';
   
   // Map title
-  mapTitle.textContent = `[ FOREST OVERWORLD ${FOREST_W}×${FOREST_H} ]`;
+  if(state.zlevel < 0) {
+    mapTitle.textContent = `[ CAVERN LAYER Z=${state.zlevel} ]`;
+  } else {
+    mapTitle.textContent = `[ FOREST OVERWORLD ${FOREST_W}×${FOREST_H} ]`;
+  }
   envPanel.style.display = 'block';
   timeOfDay.textContent = state.dayNightCycle.toUpperCase();
   weather.textContent = state.weather.toUpperCase();
+  depth.textContent = `Z=${state.zlevel}`;
   
   logEl.innerHTML = state.log.slice(-12).join('\n');
   logEl.scrollTop = logEl.scrollHeight; // Auto-scroll to bottom
@@ -2358,9 +2816,16 @@ addEventListener('keydown', (e)=>{
   else if(k==='e'||k==='E') useTool(state.player.facing.dx, state.player.facing.dy);
   else if(k==='g'||k==='G') pickup();
   else if(k==='p'||k==='P') placeTorch();
-  else if(k==='.') requestPlayerWait();
+  else if(k==='>' || k==='.'){
+    if(e.shiftKey) descendStairs();
+    else requestPlayerWait();
+  }
+  else if(k==='<' || k===','){
+    if(e.shiftKey) ascendStairs();
+  }
   else if(k==='r'||k==='R') requestPlayerRest();
   else if(k==='o'||k==='O') requestPlayerObserve();
+  else if(k==='f'||k==='F') eat();
   else if(k==='i'||k==='I') { showInventory(); }
   else if(k==='v'||k==='V') { state.visibilityOn=!state.visibilityOn; log('Visibility '+(state.visibilityOn?'ON':'OFF')); render(); }
   else if(k==='h'||k==='H'||k==='k'||k==='K') toggleHelp();
@@ -2384,6 +2849,8 @@ const hp = document.getElementById('hp');
 const hpMax = document.getElementById('hpMax');
 const stam = document.getElementById('stam');
 const stamMax = document.getElementById('stamMax');
+const hunger = document.getElementById('hunger');
+const hungerMax = document.getElementById('hungerMax');
 const str = document.getElementById('str');
 const int_ = document.getElementById('int');
 const agi = document.getElementById('agi');
@@ -2406,6 +2873,7 @@ const inventoryItems = document.getElementById('inventoryItems');
 const envPanel = document.getElementById('envPanel');
 const timeOfDay = document.getElementById('timeOfDay');
 const weather = document.getElementById('weather');
+const depth = document.getElementById('depth');
 
 // ========== AUDIO SYSTEM ==========
 const audioSystem = {
@@ -2458,6 +2926,7 @@ const audioSystem = {
   const urlSeed = new URLSearchParams(location.search).get('seed');
   srand(urlSeed ? parseInt(urlSeed,10) : state.seed);
   state.map = loadForestWithTemple();
+  state.layers[0] = state.map; // Store surface layer
   log('Welcome to the Origin Temple. The forest surrounds you. Dig through the walls to escape!');
   state.seen.add(state.player.y*10000+state.player.x);
   
