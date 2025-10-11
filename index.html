@@ -212,36 +212,283 @@ Depth: <span id="depth">Z=0</span></div>
     <p style="text-align:center;color:var(--muted);margin-top:20px">Press H or K to close</p>
   </div>
 
-  <!-- Debug Panel -->
-  <div id="debugOverlay" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid var(--diamond);padding:20px;z-index:10000;min-width:400px;font-family:monospace;color:var(--text)">
-    <h3 style="text-align:center;color:var(--diamond);margin-bottom:15px">⚙ DEBUG PANEL ⚙</h3>
-    
-    <div style="margin-bottom:15px">
-      <h4 style="color:var(--spade);margin-bottom:8px">Movement Stamina Cost</h4>
-      <input type="range" id="debugMoveCost" min="0.01" max="1.0" step="0.01" value="0.05" style="width:100%">
-      <div style="color:var(--muted);font-size:12px">Base Cost: <span id="debugMoveCostValue">0.05</span></div>
+  <!-- Debug Menu Screen -->
+  <div id="debugScreen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.98);z-index:10000;overflow-y:auto;backdrop-filter:blur(3px)">
+    <div style="max-width:1400px;margin:0 auto;padding:30px 20px;font-family:monospace;color:var(--ink)">
+      <!-- Header -->
+      <div style="text-align:center;background:linear-gradient(to bottom, #0a0a0a, transparent);border:2px solid var(--diamond);border-radius:8px;padding:20px;margin-bottom:30px;box-shadow:0 4px 20px rgba(90,173,221,0.2)">
+        <h2 style="color:var(--diamond);margin:0 0 8px 0;font-size:28px;letter-spacing:3px;text-shadow:0 0 10px rgba(90,173,221,0.5)">⚙ DEBUG MENU ⚙</h2>
+        <p style="color:var(--muted);font-size:13px;margin:0">Press <kbd style="border:1px solid var(--diamond);padding:3px 8px;background:#111;border-radius:3px;box-shadow:0 2px 4px rgba(0,0,0,0.5)">`</kbd> or <kbd style="border:1px solid var(--diamond);padding:3px 8px;background:#111;border-radius:3px;box-shadow:0 2px 4px rgba(0,0,0,0.5)">ESC</kbd> to return to game</p>
+      </div>
+
+      <!-- Tab Navigation -->
+      <div style="display:flex;gap:10px;margin-bottom:25px;flex-wrap:wrap;justify-content:center">
+        <button onclick="switchDebugTab('core')" id="debugTabCore" style="padding:10px 20px;background:var(--diamond);border:2px solid var(--diamond);color:#000;cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">⚡ CORE</button>
+        <button onclick="switchDebugTab('inventory')" id="debugTabInventory" style="padding:10px 20px;background:#0a0a0a;border:2px solid var(--line);color:var(--muted);cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🎒 INVENTORY</button>
+        <button onclick="switchDebugTab('world')" id="debugTabWorld" style="padding:10px 20px;background:#0a0a0a;border:2px solid var(--line);color:var(--muted);cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🌍 WORLD</button>
+        <button onclick="switchDebugTab('advanced')" id="debugTabAdvanced" style="padding:10px 20px;background:#0a0a0a;border:2px solid var(--line);color:var(--muted);cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🔧 ADVANCED</button>
+      </div>
+
+      <!-- Core Tab -->
+      <div id="debugTabCoreContent" style="display:block">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px">
+          
+          <!-- Game State Section -->
+          <div style="border:2px solid var(--spade);border-radius:8px;padding:18px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+              <h3 style="color:var(--spade);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">📊 GAME STATE</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">READ-ONLY</span>
+            </div>
+            <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:12px;margin-bottom:12px">
+              <div style="font-size:13px;line-height:2;color:var(--muted)">
+                <div style="display:flex;justify-content:space-between"><span>⏱️ Turns:</span> <span id="debugTurns" style="color:var(--ink);font-weight:bold">0</span></div>
+                <div style="display:flex;justify-content:space-between"><span>🎲 Seed:</span> <span id="debugSeed" style="color:var(--ink);font-weight:bold">0</span></div>
+                <div style="display:flex;justify-content:space-between"><span>📍 Position:</span> <span id="debugPosition" style="color:var(--ink);font-weight:bold">0,0</span></div>
+                <div style="display:flex;justify-content:space-between"><span>⬇️ Z-Level:</span> <span id="debugZLevel" style="color:var(--ink);font-weight:bold">0</span></div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:8px;text-align:center">
+                <div style="color:var(--muted);font-size:10px;margin-bottom:4px">WEATHER</div>
+                <div id="debugWeather" style="color:var(--spade);font-weight:bold;font-size:14px;margin-bottom:6px">clear</div>
+                <button id="debugCycleWeather" style="padding:5px 10px;background:var(--spade);border:none;color:#000;cursor:pointer;font-family:monospace;font-size:11px;border-radius:3px;width:100%">🔄 Cycle</button>
+              </div>
+              <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:8px;text-align:center">
+                <div style="color:var(--muted);font-size:10px;margin-bottom:4px">TIME</div>
+                <div id="debugTime" style="color:var(--spade);font-weight:bold;font-size:14px;margin-bottom:6px">day</div>
+                <button id="debugCycleTime" style="padding:5px 10px;background:var(--spade);border:none;color:#000;cursor:pointer;font-family:monospace;font-size:11px;border-radius:3px;width:100%">🔄 Cycle</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Player Stats Section -->
+          <div style="border:2px solid var(--heart);border-radius:8px;padding:18px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+              <h3 style="color:var(--heart);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">💪 PLAYER VITALS</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">ADJUSTABLE</span>
+            </div>
+            <div style="font-size:12px;background:#000;border:1px solid var(--line);border-radius:5px;padding:12px;margin-bottom:12px">
+              <div style="margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                  <label style="color:var(--heart);font-weight:bold">❤️ HP</label>
+                  <span style="color:var(--ink);font-weight:bold"><span id="debugHP">10</span>/<span id="debugHPMax">10</span></span>
+                </div>
+                <input type="range" id="debugHPSlider" min="0" max="100" value="10" style="width:100%;accent-color:var(--heart)">
+              </div>
+              <div style="margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                  <label style="color:var(--diamond);font-weight:bold">⚡ STAMINA</label>
+                  <span style="color:var(--ink);font-weight:bold"><span id="debugStamina">10</span>/<span id="debugStaminaMax">10</span></span>
+                </div>
+                <input type="range" id="debugStaminaSlider" min="0" max="100" value="10" style="width:100%;accent-color:var(--diamond)">
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                  <label style="color:var(--warning);font-weight:bold">🍖 HUNGER</label>
+                  <span style="color:var(--ink);font-weight:bold"><span id="debugHunger">100</span>/<span id="debugHungerMax">100</span></span>
+                </div>
+                <input type="range" id="debugHungerSlider" min="0" max="100" value="100" style="width:100%;accent-color:var(--warning)">
+              </div>
+            </div>
+            <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:10px;margin-bottom:12px">
+              <div style="color:var(--muted);font-size:11px;margin-bottom:8px;text-align:center">BASE ATTRIBUTES</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+                <div style="text-align:center">
+                  <label style="color:var(--spade);font-size:11px;font-weight:bold;display:block;margin-bottom:4px">💪 STR</label>
+                  <input type="number" id="debugSTR" min="1" max="99" value="5" style="width:100%;padding:6px;background:#111;color:var(--ink);border:1px solid var(--spade);font-family:monospace;text-align:center;border-radius:3px">
+                </div>
+                <div style="text-align:center">
+                  <label style="color:var(--diamond);font-size:11px;font-weight:bold;display:block;margin-bottom:4px">🧠 INT</label>
+                  <input type="number" id="debugINT" min="1" max="99" value="5" style="width:100%;padding:6px;background:#111;color:var(--ink);border:1px solid var(--diamond);font-family:monospace;text-align:center;border-radius:3px">
+                </div>
+                <div style="text-align:center">
+                  <label style="color:var(--success);font-size:11px;font-weight:bold;display:block;margin-bottom:4px">⚡ AGI</label>
+                  <input type="number" id="debugAGI" min="1" max="99" value="5" style="width:100%;padding:6px;background:#111;color:var(--ink);border:1px solid var(--success);font-family:monospace;text-align:center;border-radius:3px">
+                </div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <button id="debugRestoreAll" style="padding:10px;background:var(--heart);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🔄 RESTORE</button>
+              <button id="debugMaxStats" style="padding:10px;background:linear-gradient(135deg, var(--heart) 0%, var(--error) 100%);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">⚡ MAX ALL</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Inventory Tab -->
+      <div id="debugTabInventoryContent" style="display:none">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px">
+
+          <!-- Resources Section -->
+          <div style="border:2px solid var(--club);border-radius:8px;padding:18px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+              <h3 style="color:var(--club);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">💎 RESOURCES</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">EDITABLE</span>
+            </div>
+            <div id="debugResourcesList" style="max-height:200px;overflow-y:auto;font-size:12px;margin-bottom:12px;background:#000;border:1px solid var(--line);border-radius:5px;padding:8px"></div>
+            <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:10px;margin-bottom:10px">
+              <div style="color:var(--muted);font-size:11px;margin-bottom:8px">ADD RESOURCES</div>
+              <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px">
+                <select id="debugResourceSelect" style="padding:8px;background:#111;color:var(--ink);border:1px solid var(--club);font-family:monospace;font-size:12px;border-radius:3px">
+                  <option value="">Select resource...</option>
+                </select>
+                <input type="number" id="debugResourceAmount" placeholder="Qty" min="0" max="999" value="10" style="width:80px;padding:8px;background:#111;color:var(--ink);border:1px solid var(--club);font-family:monospace;font-size:12px;text-align:center;border-radius:3px">
+              </div>
+              <button id="debugAddResource" style="padding:8px 16px;background:var(--club);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;font-size:12px;border-radius:5px;width:100%">➕ ADD RESOURCE</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <button id="debugMaxResources" style="padding:10px;background:linear-gradient(135deg, var(--club) 0%, var(--warning) 100%);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">⭐ MAX ALL (999)</button>
+              <button id="debugClearResources" style="padding:10px;background:#333;border:1px solid var(--error);color:var(--error);cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🗑️ CLEAR ALL</button>
+            </div>
+          </div>
+
+          <!-- Item Creator Section -->
+          <div style="border:2px solid var(--diamond);border-radius:8px;padding:18px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+              <h3 style="color:var(--diamond);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">🔨 ITEM CREATOR</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">INSTANT</span>
+            </div>
+            <div style="font-size:12px;background:#000;border:1px solid var(--line);border-radius:5px;padding:12px;margin-bottom:12px">
+              <label style="color:var(--muted);display:block;margin-bottom:8px;font-size:11px">SELECT RECIPE TO CRAFT</label>
+              <select id="debugRecipeSelect" style="width:100%;padding:10px;background:#111;color:var(--ink);border:1px solid var(--diamond);font-family:monospace;font-size:12px;margin-bottom:12px;border-radius:3px">
+                <option value="">Choose recipe...</option>
+              </select>
+              <div id="debugRecipeInfo" style="color:var(--muted);font-size:11px;margin-bottom:12px;min-height:50px;background:#111;padding:10px;border-radius:3px;border:1px solid var(--line)"></div>
+              <button id="debugCreateItem" style="padding:12px;background:var(--diamond);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;width:100%;border-radius:5px;font-size:13px">✨ CREATE ITEM</button>
+            </div>
+            <div style="background:#111;border:1px solid var(--warning);border-radius:5px;padding:8px">
+              <p style="color:var(--warning);font-size:10px;margin:0;text-align:center">⚠️ Creates items without consuming resources</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- World Tab -->
+      <div id="debugTabWorldContent" style="display:none">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px">
+
+          <!-- Teleport Section -->
+          <div style="border:2px solid var(--warning);border-radius:8px;padding:18px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+              <h3 style="color:var(--warning);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">🌍 TELEPORT</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">INSTANT</span>
+            </div>
+            <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:12px;margin-bottom:12px">
+              <div style="color:var(--muted);font-size:11px;margin-bottom:10px">COORDINATES</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                <div>
+                  <label style="color:var(--warning);font-size:11px;font-weight:bold;display:block;margin-bottom:4px">X POSITION</label>
+                  <input type="number" id="debugTeleportX" min="0" max="200" value="0" style="width:100%;padding:8px;background:#111;color:var(--ink);border:1px solid var(--warning);font-family:monospace;font-size:14px;text-align:center;border-radius:3px">
+                </div>
+                <div>
+                  <label style="color:var(--warning);font-size:11px;font-weight:bold;display:block;margin-bottom:4px">Y POSITION</label>
+                  <input type="number" id="debugTeleportY" min="0" max="200" value="0" style="width:100%;padding:8px;background:#111;color:var(--ink);border:1px solid var(--warning);font-family:monospace;font-size:14px;text-align:center;border-radius:3px">
+                </div>
+              </div>
+              <button id="debugTeleportGo" style="padding:12px;background:var(--warning);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;width:100%;margin-bottom:10px;border-radius:5px;font-size:13px">🚀 TELEPORT NOW</button>
+              <div style="border-top:1px solid var(--line);padding-top:10px;margin-top:10px">
+                <div style="color:var(--muted);font-size:11px;margin-bottom:8px">QUICK LOCATIONS</div>
+                <button id="debugTeleportLab" style="padding:10px;background:#333;border:1px solid var(--diamond);color:var(--diamond);cursor:pointer;font-family:monospace;font-weight:bold;width:100%;border-radius:5px">🔬 SECRET LAB</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recipe Manager Section -->
+          <div style="border:2px solid var(--success);border-radius:8px;padding:18px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+              <h3 style="color:var(--success);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">📜 RECIPE MANAGER</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">TOGGLE</span>
+            </div>
+            <div id="debugRecipesList" style="max-height:200px;overflow-y:auto;font-size:11px;margin-bottom:12px;background:#000;border:1px solid var(--line);border-radius:5px;padding:8px"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <button id="debugUnlockAllRecipes" style="padding:10px;background:var(--success);border:none;color:#000;cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🔓 UNLOCK ALL</button>
+              <button id="debugLockAllRecipes" style="padding:10px;background:#333;border:1px solid var(--error);color:var(--error);cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;transition:all 0.2s">🔒 LOCK ALL</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Advanced Tab -->
+      <div id="debugTabAdvancedContent" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr;gap:20px">
+
+          <!-- Configuration Section -->
+          <div style="border:2px solid #888;border-radius:8px;padding:20px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+              <h3 style="color:#888;margin:0;font-size:17px;display:flex;align-items:center;gap:8px">⚙️ GAME CONFIGURATION</h3>
+              <span style="color:var(--muted);font-size:10px;background:#000;padding:3px 8px;border-radius:3px;border:1px solid var(--line)">LIVE</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px">
+              <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:15px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <h4 style="color:var(--spade);margin:0;font-size:13px;font-weight:bold">⚡ Movement Cost</h4>
+                  <span style="color:var(--ink);font-weight:bold;font-size:14px"><span id="debugMoveCostValue">0.05</span></span>
+                </div>
+                <input type="range" id="debugMoveCost" min="0.01" max="1.0" step="0.01" value="0.05" style="width:100%;accent-color:var(--spade)">
+                <div style="color:var(--muted);font-size:10px;margin-top:6px;text-align:center">Stamina used per move</div>
+              </div>
+              <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:15px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <h4 style="color:var(--heart);margin:0;font-size:13px;font-weight:bold">💪 Regen Multiplier</h4>
+                  <span style="color:var(--ink);font-weight:bold;font-size:14px"><span id="debugStamRegenValue">1.0</span>x</span>
+                </div>
+                <input type="range" id="debugStamRegen" min="0.1" max="5.0" step="0.1" value="1.0" style="width:100%;accent-color:var(--heart)">
+                <div style="color:var(--muted);font-size:10px;margin-top:6px;text-align:center">Stamina regeneration rate</div>
+              </div>
+              <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:15px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <h4 style="color:var(--club);margin:0;font-size:13px;font-weight:bold">🍖 Hunger Decay</h4>
+                  <span style="color:var(--ink);font-weight:bold;font-size:14px"><span id="debugHungerDecayValue">0.5</span></span>
+                </div>
+                <input type="range" id="debugHungerDecay" min="0" max="2.0" step="0.1" value="0.5" style="width:100%;accent-color:var(--club)">
+                <div style="color:var(--muted);font-size:10px;margin-top:6px;text-align:center">Hunger lost per 5 turns</div>
+              </div>
+            </div>
+            <div style="background:#111;border:1px solid var(--warning);border-radius:5px;padding:10px;margin-top:15px">
+              <p style="color:var(--warning);font-size:11px;margin:0;text-align:center">⚠️ Changes affect gameplay balance immediately</p>
+            </div>
+          </div>
+
+          <!-- Entity Spawner Section -->
+          <div style="border:2px solid var(--error);border-radius:8px;padding:20px;background:linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);box-shadow:0 4px 12px rgba(0,0,0,0.5);margin-top:20px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+              <h3 style="color:var(--error);margin:0;font-size:17px;display:flex;align-items:center;gap:8px">🐺 ENTITY SPAWNER</h3>
+              <span style="background:var(--error);color:#000;font-size:10px;padding:3px 8px;border-radius:3px;font-weight:bold">ENTITIES: <span id="debugEntityCount">0</span></span>
+            </div>
+            <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:15px;margin-bottom:15px">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:15px">
+                <div>
+                  <label style="color:var(--error);font-size:11px;font-weight:bold;display:block;margin-bottom:6px">ENTITY TYPE</label>
+                  <select id="debugEntityType" style="width:100%;padding:10px;background:#111;color:var(--ink);border:1px solid var(--error);font-family:monospace;font-size:12px;border-radius:3px">
+                    <option value="wolf">🐺 Wolf (hostile)</option>
+                    <option value="bear">🐻 Bear (neutral)</option>
+                    <option value="deer">🦌 Deer (passive)</option>
+                    <option value="snake">🐍 Snake (hostile)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="color:var(--error);font-size:11px;font-weight:bold;display:block;margin-bottom:6px">SPAWN LOCATION</label>
+                  <select id="debugEntityOffset" style="width:100%;padding:10px;background:#111;color:var(--ink);border:1px solid var(--error);font-family:monospace;font-size:12px;border-radius:3px">
+                    <option value="current">📍 At player</option>
+                    <option value="nearby">🎲 Nearby (random)</option>
+                    <option value="visible">👁️ Visible range</option>
+                  </select>
+                </div>
+              </div>
+              <button id="debugSpawnEntity" style="padding:12px;background:var(--error);border:none;color:#fff;cursor:pointer;font-family:monospace;font-weight:bold;width:100%;border-radius:5px;font-size:13px">➕ SPAWN ENTITY</button>
+            </div>
+            <button id="debugClearEntities" style="padding:10px;background:#333;border:1px solid var(--error);color:var(--error);cursor:pointer;font-family:monospace;font-weight:bold;border-radius:5px;width:100%">🗑️ CLEAR ALL ENTITIES</button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="text-align:center;margin-top:40px;padding:20px;background:linear-gradient(to top, #0a0a0a, transparent);border-top:2px solid var(--line);border-radius:8px">
+        <p style="color:var(--diamond);font-size:13px;margin:0 0 5px 0;font-weight:bold">Lost Poets v0.3 — Debug Menu</p>
+        <p style="color:var(--muted);font-size:11px;margin:0">All changes take effect immediately • Use responsibly</p>
+      </div>
     </div>
-    
-    <div style="margin-bottom:15px">
-      <h4 style="color:var(--heart);margin-bottom:8px">Stamina Regen Multiplier</h4>
-      <input type="range" id="debugStamRegen" min="0.1" max="5.0" step="0.1" value="1.0" style="width:100%">
-      <div style="color:var(--muted);font-size:12px">Multiplier: <span id="debugStamRegenValue">1.0</span>x (0.3-1.5 when well-fed)</div>
-    </div>
-    
-    <div style="margin-bottom:15px">
-      <h4 style="color:var(--club);margin-bottom:8px">Hunger Decay Rate</h4>
-      <input type="range" id="debugHungerDecay" min="0" max="2.0" step="0.1" value="0.5" style="width:100%">
-      <div style="color:var(--muted);font-size:12px">Per 5 turns: <span id="debugHungerDecayValue">0.5</span></div>
-    </div>
-    
-    <div style="margin-bottom:15px">
-      <h4 style="color:var(--diamond);margin-bottom:8px">Quick Actions</h4>
-      <button onclick="state.player.stamina = state.player.stamMax; render(); log('Stamina restored!');" style="margin:5px;padding:5px 10px;background:var(--heart);border:none;color:#000;cursor:pointer;font-family:monospace">Restore Stamina</button>
-      <button onclick="state.player.hunger = state.player.hungerMax; render(); log('Hunger restored!');" style="margin:5px;padding:5px 10px;background:var(--club);border:none;color:#000;cursor:pointer;font-family:monospace">Restore Hunger</button>
-      <button onclick="state.player.hp = state.player.hpMax; render(); log('HP restored!');" style="margin:5px;padding:5px 10px;background:var(--spade);border:none;color:#000;cursor:pointer;font-family:monospace">Restore HP</button>
-    </div>
-    
-    <p style="text-align:center;color:var(--muted);margin-top:15px;font-size:12px">Press ` (backtick) to close</p>
   </div>
 
 <script>
@@ -2742,9 +2989,13 @@ function toggleHelp(){
 
 function toggleDebug(){
   state.debugOpen = !state.debugOpen;
-  const debugOverlay = document.getElementById('debugOverlay');
-  debugOverlay.style.display = state.debugOpen ? 'block' : 'none';
-  if(!state.debugOpen) view.focus();
+  const debugScreen = document.getElementById('debugScreen');
+  debugScreen.style.display = state.debugOpen ? 'block' : 'none';
+  if(state.debugOpen){
+    updateDebugScreen();
+  } else {
+    view.focus();
+  }
 }
 
 function updateDebugValues(){
@@ -2752,6 +3003,133 @@ function updateDebugValues(){
   document.getElementById('debugMoveCostValue').textContent = debugConfig.movementStaminaCost.toFixed(2);
   document.getElementById('debugStamRegenValue').textContent = debugConfig.staminaRegenMultiplier.toFixed(1);
   document.getElementById('debugHungerDecayValue').textContent = debugConfig.hungerDecayRate.toFixed(1);
+}
+
+function switchDebugTab(tabName){
+  // Hide all tabs
+  document.getElementById('debugTabCoreContent').style.display = 'none';
+  document.getElementById('debugTabInventoryContent').style.display = 'none';
+  document.getElementById('debugTabWorldContent').style.display = 'none';
+  document.getElementById('debugTabAdvancedContent').style.display = 'none';
+  
+  // Reset all tab buttons
+  const tabs = ['Core', 'Inventory', 'World', 'Advanced'];
+  tabs.forEach(t => {
+    const btn = document.getElementById('debugTab' + t);
+    btn.style.background = '#0a0a0a';
+    btn.style.borderColor = 'var(--line)';
+    btn.style.color = 'var(--muted)';
+  });
+  
+  // Show selected tab
+  const tabContent = document.getElementById('debugTab' + tabName.charAt(0).toUpperCase() + tabName.slice(1) + 'Content');
+  if(tabContent) tabContent.style.display = 'block';
+  
+  // Highlight selected tab button
+  const activeBtn = document.getElementById('debugTab' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
+  if(activeBtn){
+    activeBtn.style.background = 'var(--diamond)';
+    activeBtn.style.borderColor = 'var(--diamond)';
+    activeBtn.style.color = '#000';
+  }
+}
+
+function updateDebugScreen(){
+  // Update all debug screen values with current game state
+  
+  // Game State
+  document.getElementById('debugTurns').textContent = state.turns;
+  document.getElementById('debugSeed').textContent = state.seed;
+  document.getElementById('debugPosition').textContent = `${state.player.x},${state.player.y}`;
+  document.getElementById('debugZLevel').textContent = state.zlevel;
+  document.getElementById('debugWeather').textContent = state.weather;
+  document.getElementById('debugTime').textContent = state.dayNightCycle;
+  
+  // Player Stats
+  document.getElementById('debugHP').textContent = Math.round(state.player.hp);
+  document.getElementById('debugHPMax').textContent = state.player.hpMax;
+  document.getElementById('debugHPSlider').value = state.player.hp;
+  document.getElementById('debugHPSlider').max = state.player.hpMax;
+  
+  document.getElementById('debugStamina').textContent = Math.round(state.player.stamina);
+  document.getElementById('debugStaminaMax').textContent = state.player.stamMax;
+  document.getElementById('debugStaminaSlider').value = state.player.stamina;
+  document.getElementById('debugStaminaSlider').max = state.player.stamMax;
+  
+  document.getElementById('debugHunger').textContent = Math.round(state.player.hunger);
+  document.getElementById('debugHungerMax').textContent = state.player.hungerMax;
+  document.getElementById('debugHungerSlider').value = state.player.hunger;
+  document.getElementById('debugHungerSlider').max = state.player.hungerMax;
+  
+  document.getElementById('debugSTR').value = state.player.str;
+  document.getElementById('debugINT').value = state.player.int;
+  document.getElementById('debugAGI').value = state.player.agi;
+  
+  // Resources List
+  let resourcesHtml = '';
+  for(const [resId, amount] of Object.entries(state.resources)){
+    const info = RESOURCE_INFO[resId];
+    if(!info) continue;
+    const color = info.color || '#888';
+    resourcesHtml += `<div style="display:flex;justify-content:space-between;padding:4px;border-bottom:1px solid #222">
+      <span style="color:${color}">${info.glyph} ${info.name}</span>
+      <span style="color:var(--ink)">${amount}</span>
+    </div>`;
+  }
+  document.getElementById('debugResourcesList').innerHTML = resourcesHtml;
+  
+  // Populate resource select
+  const resourceSelect = document.getElementById('debugResourceSelect');
+  if(resourceSelect.options.length <= 1){
+    for(const [resId, info] of Object.entries(RESOURCE_INFO)){
+      const opt = document.createElement('option');
+      opt.value = resId;
+      opt.textContent = `${info.glyph} ${info.name}`;
+      resourceSelect.appendChild(opt);
+    }
+  }
+  
+  // Populate recipe select
+  const recipeSelect = document.getElementById('debugRecipeSelect');
+  if(recipeSelect.options.length <= 1){
+    for(const [recipeId, recipe] of Object.entries(RECIPES)){
+      const opt = document.createElement('option');
+      opt.value = recipeId;
+      opt.textContent = recipe.name;
+      recipeSelect.appendChild(opt);
+    }
+  }
+  
+  // Recipe Manager List
+  let recipesHtml = '';
+  for(const [recipeId, recipe] of Object.entries(RECIPES)){
+    const unlocked = state.unlockedRecipes.has(recipeId);
+    const status = unlocked ? '<span style="color:var(--success)">✓</span>' : '<span style="color:#444">✗</span>';
+    recipesHtml += `<div style="display:flex;justify-content:space-between;padding:3px;border-bottom:1px solid #222">
+      <span>${status} ${recipe.name}</span>
+      <button onclick="debugToggleRecipe('${recipeId}')" style="padding:2px 8px;background:#333;border:none;color:#ccc;cursor:pointer;font-family:monospace;font-size:10px">${unlocked ? 'Lock' : 'Unlock'}</button>
+    </div>`;
+  }
+  document.getElementById('debugRecipesList').innerHTML = recipesHtml;
+  
+  // Teleport inputs
+  document.getElementById('debugTeleportX').value = state.player.x;
+  document.getElementById('debugTeleportY').value = state.player.y;
+  
+  // Entity count
+  document.getElementById('debugEntityCount').textContent = state.entities.length;
+  
+  // Update config values
+  updateDebugValues();
+}
+
+function debugToggleRecipe(recipeId){
+  if(state.unlockedRecipes.has(recipeId)){
+    state.unlockedRecipes.delete(recipeId);
+  } else {
+    state.unlockedRecipes.add(recipeId);
+  }
+  updateDebugScreen();
 }
 
 function showInventory(){
@@ -2795,6 +3173,13 @@ function closeInventory(){
 
 // ========== INPUT ==========
 addEventListener('keydown', (e)=>{
+  // Debug menu handling
+  if(state.debugOpen && (e.key==='`'||e.key==='Escape')){
+    toggleDebug();
+    e.preventDefault();
+    return;
+  }
+  
   if(state.helpOpen && (e.key==='h'||e.key==='H'||e.key==='k'||e.key==='K'||e.key==='Escape')){
     toggleHelp();
     e.preventDefault();
@@ -2898,7 +3283,7 @@ for(let i=1;i<=4;i++){
   document.getElementById('tool'+i).addEventListener('click', ()=>selectTool(i));
 }
 
-// Debug panel event listeners
+// Debug menu event listeners
 document.getElementById('debugMoveCost').addEventListener('input', (e) => {
   debugConfig.movementStaminaCost = parseFloat(e.target.value);
   updateDebugValues();
@@ -2912,6 +3297,240 @@ document.getElementById('debugStamRegen').addEventListener('input', (e) => {
 document.getElementById('debugHungerDecay').addEventListener('input', (e) => {
   debugConfig.hungerDecayRate = parseFloat(e.target.value);
   updateDebugValues();
+});
+
+// Game State buttons
+document.getElementById('debugCycleWeather').addEventListener('click', () => {
+  const weathers = ['clear', 'rain', 'fog'];
+  const idx = weathers.indexOf(state.weather);
+  state.weather = weathers[(idx + 1) % weathers.length];
+  updateDebugScreen();
+  render();
+  log(`Weather changed to ${state.weather}`);
+});
+
+document.getElementById('debugCycleTime').addEventListener('click', () => {
+  const times = ['day', 'dusk', 'night', 'dawn'];
+  const idx = times.indexOf(state.dayNightCycle);
+  state.dayNightCycle = times[(idx + 1) % times.length];
+  updateDebugScreen();
+  render();
+  log(`Time changed to ${state.dayNightCycle}`);
+});
+
+// Player Stats sliders
+document.getElementById('debugHPSlider').addEventListener('input', (e) => {
+  state.player.hp = parseFloat(e.target.value);
+  document.getElementById('debugHP').textContent = Math.round(state.player.hp);
+  render();
+});
+
+document.getElementById('debugStaminaSlider').addEventListener('input', (e) => {
+  state.player.stamina = parseFloat(e.target.value);
+  document.getElementById('debugStamina').textContent = Math.round(state.player.stamina);
+  render();
+});
+
+document.getElementById('debugHungerSlider').addEventListener('input', (e) => {
+  state.player.hunger = parseFloat(e.target.value);
+  document.getElementById('debugHunger').textContent = Math.round(state.player.hunger);
+  render();
+});
+
+document.getElementById('debugSTR').addEventListener('input', (e) => {
+  state.player.str = parseInt(e.target.value) || 1;
+  render();
+});
+
+document.getElementById('debugINT').addEventListener('input', (e) => {
+  state.player.int = parseInt(e.target.value) || 1;
+  render();
+});
+
+document.getElementById('debugAGI').addEventListener('input', (e) => {
+  state.player.agi = parseInt(e.target.value) || 1;
+  render();
+});
+
+document.getElementById('debugRestoreAll').addEventListener('click', () => {
+  state.player.hp = state.player.hpMax;
+  state.player.stamina = state.player.stamMax;
+  state.player.hunger = state.player.hungerMax;
+  updateDebugScreen();
+  render();
+  log('All vitals restored!');
+});
+
+document.getElementById('debugMaxStats').addEventListener('click', () => {
+  state.player.hpMax = 100;
+  state.player.hp = 100;
+  state.player.stamMax = 100;
+  state.player.stamina = 100;
+  state.player.hungerMax = 100;
+  state.player.hunger = 100;
+  state.player.str = 99;
+  state.player.int = 99;
+  state.player.agi = 99;
+  updateDebugScreen();
+  render();
+  log('Max stats applied!');
+});
+
+// Resources buttons
+document.getElementById('debugAddResource').addEventListener('click', () => {
+  const resId = document.getElementById('debugResourceSelect').value;
+  const amount = parseInt(document.getElementById('debugResourceAmount').value) || 0;
+  if(resId && state.resources.hasOwnProperty(resId)){
+    state.resources[resId] = (state.resources[resId] || 0) + amount;
+    updateDebugScreen();
+    render();
+    log(`Added ${amount} ${RESOURCE_INFO[resId].name}`);
+  }
+});
+
+document.getElementById('debugClearResources').addEventListener('click', () => {
+  for(const resId in state.resources){
+    state.resources[resId] = 0;
+  }
+  updateDebugScreen();
+  render();
+  log('All resources cleared!');
+});
+
+document.getElementById('debugMaxResources').addEventListener('click', () => {
+  for(const resId in state.resources){
+    state.resources[resId] = 999;
+  }
+  updateDebugScreen();
+  render();
+  log('All resources maxed to 999!');
+});
+
+// Item Creator
+document.getElementById('debugRecipeSelect').addEventListener('change', (e) => {
+  const recipeId = e.target.value;
+  if(recipeId && RECIPES[recipeId]){
+    const recipe = RECIPES[recipeId];
+    let info = `<div style="color:var(--diamond);font-weight:bold;margin-bottom:6px">${recipe.name}</div>`;
+    info += `<div style="color:var(--muted);margin-bottom:6px">${recipe.desc || 'No description'}</div>`;
+    if(recipe.inputs){
+      const inputs = Object.entries(recipe.inputs).map(([r,a]) => `${RESOURCE_INFO[r]?.name || r} x${a}`).join(', ');
+      info += `<div style="color:var(--warning);font-size:10px">📦 Requires: ${inputs}</div>`;
+    }
+    document.getElementById('debugRecipeInfo').innerHTML = info;
+  } else {
+    document.getElementById('debugRecipeInfo').innerHTML = '<div style="color:var(--muted);text-align:center;padding:15px">Select a recipe to see details</div>';
+  }
+});
+
+document.getElementById('debugCreateItem').addEventListener('click', () => {
+  const recipeId = document.getElementById('debugRecipeSelect').value;
+  if(recipeId && RECIPES[recipeId]){
+    const recipe = RECIPES[recipeId];
+    if(recipe.makeItem){
+      const item = recipe.makeItem();
+      state.inventory.push(item);
+      log(`Created: ${item.name}`);
+      render();
+    } else if(recipe.outputs){
+      for(const [resId, amount] of Object.entries(recipe.outputs)){
+        if(resId === 'inventory'){
+          // Special case handled above
+        } else if(state.resources.hasOwnProperty(resId)){
+          state.resources[resId] += amount;
+        }
+      }
+      log(`Created: ${recipe.name}`);
+      render();
+    }
+  }
+});
+
+// Teleport
+document.getElementById('debugTeleportGo').addEventListener('click', () => {
+  const x = parseInt(document.getElementById('debugTeleportX').value);
+  const y = parseInt(document.getElementById('debugTeleportY').value);
+  if(!isNaN(x) && !isNaN(y)){
+    state.player.x = x;
+    state.player.y = y;
+    updateDebugScreen();
+    render();
+    log(`Teleported to (${x}, ${y})`);
+  }
+});
+
+document.getElementById('debugTeleportLab').addEventListener('click', () => {
+  teleportToLab();
+  updateDebugScreen();
+  log('Teleported to Secret Lab');
+});
+
+// Recipe Manager
+document.getElementById('debugUnlockAllRecipes').addEventListener('click', () => {
+  for(const recipeId in RECIPES){
+    state.unlockedRecipes.add(recipeId);
+  }
+  updateDebugScreen();
+  log('All recipes unlocked!');
+});
+
+document.getElementById('debugLockAllRecipes').addEventListener('click', () => {
+  state.unlockedRecipes.clear();
+  // Re-add basic recipes
+  state.unlockedRecipes.add('key');
+  state.unlockedRecipes.add('keyAlt');
+  state.unlockedRecipes.add('axe');
+  state.unlockedRecipes.add('torch');
+  updateDebugScreen();
+  log('All recipes locked (except starting recipes)!');
+});
+
+// Entity Spawner
+document.getElementById('debugSpawnEntity').addEventListener('click', () => {
+  const entityType = document.getElementById('debugEntityType').value;
+  const offset = document.getElementById('debugEntityOffset').value;
+  
+  let x = state.player.x;
+  let y = state.player.y;
+  
+  if(offset === 'nearby'){
+    x += Math.floor(Math.random() * 10 - 5);
+    y += Math.floor(Math.random() * 10 - 5);
+  } else if(offset === 'visible'){
+    x += Math.floor(Math.random() * 16 - 8);
+    y += Math.floor(Math.random() * 16 - 8);
+  }
+  
+  // Ensure in bounds
+  if(state.zlevel === 0){
+    x = Math.max(0, Math.min(FOREST_W - 1, x));
+    y = Math.max(0, Math.min(FOREST_H - 1, y));
+  }
+  
+  const glyphs = {wolf:'W', bear:'B', deer:'D', snake:'S'};
+  const hps = {wolf:15, bear:30, deer:10, snake:8};
+  const states = {wolf:'hunting', bear:'idle', deer:'idle', snake:'hunting'};
+  
+  const entity = {
+    type: entityType,
+    x: x,
+    y: y,
+    hp: hps[entityType] || 10,
+    glyph: glyphs[entityType] || '?',
+    state: states[entityType] || 'idle'
+  };
+  
+  state.entities.push(entity);
+  updateDebugScreen();
+  render();
+  log(`Spawned ${entityType} at (${x}, ${y})`);
+});
+
+document.getElementById('debugClearEntities').addEventListener('click', () => {
+  state.entities = [];
+  updateDebugScreen();
+  render();
+  log('All entities cleared!');
 });
 
 // ========== BOOT ==========
