@@ -458,10 +458,20 @@ function useSpade(x, y){
 
 ## 🎯 Key Features
 
+### Enhanced Graphics & Visual Quality ✨
+- **Animated Tiles**: Flickering lava, sparkling crystals, flowing water effects
+- **Progress Bars**: Visual HP, Stamina, and Hunger bars with color gradients
+- **Particle Effects**: Damage numbers, heal effects, and sparkle animations
+- **Achievement Notifications**: Pop-up notifications for unlocked achievements
+- **Modal Animations**: Smooth fade-in and slide-down effects for menus
+- **Rich ASCII Art**: Enhanced tile variety with special characters and colors
+- **Biome Variety**: Lava Caverns (Z≤-4) with animated magma, Crystal Caves (Z=-2 to -3)
+
 ### Procedural Generation
 - **Seeded RNG**: Reproducible worlds via URL parameter `?seed=12345`
 - **Cellular Automata**: Organic cave systems
 - **Multi-layer Design**: Vertical exploration with stairs
+- **Biome Progression**: Forest → Stone Caverns → Crystal Caves → Lava Caverns
 
 ### Dynamic World
 - **Creature AI**: Scavengers with states (idle, hunting, fleeing, resting)
@@ -472,8 +482,11 @@ function useSpade(x, y){
 
 ### Progression Systems
 - **Stat Growth**: STR/INT/AGI increase through actions
+- **Achievement System**: 8 achievements to unlock (First Blood, Deep Explorer, Master Crafter, etc.)
+- **Quest System**: 5 progressive quests with rewards
+- **Stats Tracking**: Creatures defeated, items crafted, food gathered, exploration depth
 - **Hunger Mechanic**: Must eat food to maintain stamina regeneration
-- **Stamina System**: Actions consume energy; passive regeneration every 2 turns (0.3-1.5 based on hunger); movement cost is negligible (0.05)
+- **Stamina System**: Actions consume energy; passive regeneration every 2 turns (0.3-1.5 based on hunger)
 - **Crafting Tiers**: 15+ recipes from basic to legendary
 - **Inventory Augments**: Tools become more powerful with crafted items
 
@@ -482,6 +495,37 @@ function useSpade(x, y){
 - **Dynamic Lighting**: Torches extend vision radius
 - **Distance Shading**: 10 opacity levels (v0-v9) based on distance
 - **Toggle Visibility**: Press `V` to see entire map (debug mode)
+
+---
+
+## 🏆 Achievements & Quests
+
+### Achievements
+Lost Poets features 8 unlockable achievements that track your progress:
+
+| Achievement | Icon | Description | Requirement |
+|------------|------|-------------|-------------|
+| **First Blood** | ⚔ | Defeat your first creature | Defeat any creature |
+| **Deep Explorer** | ↓ | Reach Z=-3 or deeper | Descend to depth -3 |
+| **Master Crafter** | ⚒ | Craft 10 different items | Craft 10 unique items |
+| **Hoarder** | $ | Collect 100 of any resource | Accumulate 100+ of one resource |
+| **Survivor** | ⏱ | Survive 500 turns | Reach turn 500 |
+| **Legendary** | ⚡ | Craft the Legendary Blade | Craft the ultimate weapon |
+| **Forager** | ♠ | Gather 50 food items | Collect 50 food items |
+| **Illuminator** | ⚍ | Place 10 torches | Place 10 light sources |
+
+### Quests
+Progressive quest system with rewards:
+
+| Quest | Description | Reward |
+|-------|-------------|--------|
+| **Temple Access** | Craft a key to unlock the temple door | 10 EXP |
+| **Tool Up** | Craft your first weapon or tool | 5 EXP |
+| **Into the Depths** | Explore the caverns below (Z=-1) | 15 EXP |
+| **Rare Discovery** | Find a rare gem (diamond, ruby, or crystal) | 20 EXP |
+| **Masterwork** | Craft an advanced or master tier item | 50 EXP |
+
+Achievements display as pop-up notifications in the top-right corner when unlocked, with visual effects and sound feedback.
 
 ---
 
