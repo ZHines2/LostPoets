@@ -487,6 +487,14 @@ Depth: <span id="depth">Z=0</span></div>
                 <input type="range" id="debugHungerDecay" min="0" max="2.0" step="0.1" value="0.5" style="width:100%;accent-color:var(--club)">
                 <div style="color:var(--muted);font-size:10px;margin-top:6px;text-align:center">Hunger lost per 5 turns</div>
               </div>
+              <div style="background:#000;border:1px solid var(--line);border-radius:5px;padding:15px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <h4 style="color:var(--diamond);margin:0;font-size:13px;font-weight:bold">🔍 View Zoom</h4>
+                  <span style="color:var(--ink);font-weight:bold;font-size:14px"><span id="debugZoomValue">1.0</span>x</span>
+                </div>
+                <input type="range" id="debugZoom" min="0.5" max="2.5" step="0.1" value="1.0" style="width:100%;accent-color:var(--diamond)">
+                <div style="color:var(--muted);font-size:10px;margin-top:6px;text-align:center">Game view magnification (makes sprites bigger)</div>
+              </div>
             </div>
             <div style="background:#111;border:1px solid var(--warning);border-radius:5px;padding:10px;margin-top:15px">
               <p style="color:var(--warning);font-size:11px;margin:0;text-align:center">⚠️ Changes affect gameplay balance immediately</p>
@@ -731,7 +739,8 @@ const state = {
 const debugConfig = {
   movementStaminaCost: 0.05,
   staminaRegenMultiplier: 1.0,
-  hungerDecayRate: 0.5
+  hungerDecayRate: 0.5,
+  viewZoom: 1.0
 };
 
 // ========== RNG ==========
@@ -1082,8 +1091,14 @@ function performFocus(actor, action){
 }
 
 function performWait(actor, action){
-  // Execute wait action - do nothing, advance turn
-  log('You wait.');
+  // Execute wait action - recover stamina
+  if(actor.stamina < actor.stamMax){
+    const recovery = Math.min(2, actor.stamMax - actor.stamina);
+    actor.stamina = Math.min(actor.stamMax, actor.stamina + recovery);
+    log(`You wait, recovering ${recovery.toFixed(1)} stamina.`);
+  } else {
+    log('You wait. (Already at full stamina)');
+  }
 }
 
 function performObserve(actor, action){
@@ -3294,6 +3309,15 @@ function updateDebugValues(){
   document.getElementById('debugMoveCostValue').textContent = debugConfig.movementStaminaCost.toFixed(2);
   document.getElementById('debugStamRegenValue').textContent = debugConfig.staminaRegenMultiplier.toFixed(1);
   document.getElementById('debugHungerDecayValue').textContent = debugConfig.hungerDecayRate.toFixed(1);
+  document.getElementById('debugZoomValue').textContent = debugConfig.viewZoom.toFixed(1);
+}
+
+function applyViewZoom(){
+  // Apply zoom to the game view
+  const view = document.getElementById('view');
+  if(view){
+    view.style.fontSize = (debugConfig.viewZoom * 14) + 'px';
+  }
 }
 
 function switchDebugTab(tabName){
@@ -3588,6 +3612,12 @@ document.getElementById('debugStamRegen').addEventListener('input', (e) => {
 document.getElementById('debugHungerDecay').addEventListener('input', (e) => {
   debugConfig.hungerDecayRate = parseFloat(e.target.value);
   updateDebugValues();
+});
+
+document.getElementById('debugZoom').addEventListener('input', (e) => {
+  debugConfig.viewZoom = parseFloat(e.target.value);
+  updateDebugValues();
+  applyViewZoom();
 });
 
 // Game State buttons
@@ -3921,6 +3951,7 @@ const audioSystem = {
   // Initialize systems
   audioSystem.init();
   particleSystem.init();
+  applyViewZoom();
 })();
 </script>
 </body>
